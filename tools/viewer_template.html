@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enclosure hardware &mdash; part review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --deep:#0C1519;        /* still water, unlit */
+  --panel:#12212A;
+  --panel-2:#172C36;
+  --line:#26414D;
+  --ink:#DEEAEE;
+  --ink-dim:#7C97A2;
+  --aqua:#4FD1C0;        /* moving water */
+  --amber:#E3A455;       /* notes + warnings */
+  --r:3px;
+  color-scheme:dark;     /* one deliberate look: the dark workbench */
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--deep);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  overflow:hidden;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+
+/* ---------- shell ---------- */
+#shell{display:grid;grid-template-columns:264px 1fr;height:100%}
+
+/* ---------- rail ---------- */
+#rail{
+  background:var(--panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;min-height:0;
+}
+#brand{padding:18px 18px 14px;border-bottom:1px solid var(--line)}
+#brand h1{
+  font-family:"Space Grotesk",sans-serif;font-weight:700;
+  font-size:16px;letter-spacing:-.01em;margin:0 0 3px;
+}
+#brand p{margin:0;font-size:11.5px;color:var(--ink-dim);line-height:1.45}
+
+#list{overflow-y:auto;flex:1;padding:10px 10px 18px}
+.grp{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--ink-dim);
+  padding:14px 8px 7px;
+}
+.item{
+  display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;
+  padding:7px 9px;border-radius:var(--r);border:1px solid transparent;
+  color:var(--ink-dim);line-height:1.3;
+}
+.item:hover{background:var(--panel-2);color:var(--ink)}
+.item:focus-visible{outline:2px solid var(--aqua);outline-offset:1px}
+.item[aria-current="true"]{
+  background:var(--panel-2);color:var(--ink);border-color:var(--line);
+}
+.item[aria-current="true"] .tick{background:var(--aqua)}
+.tick{width:3px;height:13px;border-radius:2px;background:var(--line);flex:none;
+      align-self:center}
+.item .nm{font-size:13px;flex:1}
+.item .sz{font-family:"IBM Plex Mono",monospace;font-size:10px;opacity:.75}
+
+/* ---------- stage ---------- */
+#stage{position:relative;min-width:0}
+canvas{display:block}
+
+.overlay{position:absolute;pointer-events:none}
+
+#head{top:0;left:0;right:0;padding:18px 20px;
+  background:linear-gradient(var(--deep),rgba(12,21,25,0));}
+#head h2{
+  font-family:"Space Grotesk",sans-serif;font-weight:500;font-size:21px;
+  margin:0 0 4px;letter-spacing:-.01em;
+}
+#head p{margin:0;font-size:12.5px;color:var(--ink-dim);max-width:52ch;line-height:1.5}
+
+/* spec readout */
+#spec{
+  left:20px;bottom:18px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  color:var(--ink-dim);line-height:1.75;
+}
+#spec b{color:var(--ink);font-weight:500}
+#spec .k{display:inline-block;min-width:104px}
+
+/* controls */
+#tools{
+  position:absolute;top:16px;right:16px;display:flex;flex-direction:column;
+  gap:8px;align-items:flex-end;
+}
+.tbtn{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;
+  text-transform:uppercase;padding:6px 11px;border:1px solid var(--line);
+  border-radius:var(--r);background:rgba(18,33,42,.82);color:var(--ink-dim);
+  backdrop-filter:blur(6px);
+}
+.tbtn:hover{color:var(--ink);border-color:var(--aqua)}
+.tbtn:focus-visible{outline:2px solid var(--aqua);outline-offset:1px}
+.tbtn[aria-pressed="true"]{color:var(--deep);background:var(--aqua);border-color:var(--aqua)}
+.tbtn:disabled{opacity:.35;cursor:default}
+.trow{display:flex;gap:8px}
+
+#cutwrap{
+  display:flex;align-items:center;gap:9px;padding:7px 11px;
+  border:1px solid var(--line);border-radius:var(--r);
+  background:rgba(18,33,42,.82);backdrop-filter:blur(6px);
+}
+#cutwrap[hidden]{display:none}
+#cutwrap label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink-dim)}
+input[type=range]{width:118px;accent-color:var(--aqua);background:transparent}
+input[type=range]:focus-visible{outline:2px solid var(--aqua);outline-offset:3px}
+
+#hint{
+  right:16px;bottom:18px;text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-size:10px;color:#4E6B76;
+  line-height:1.7;
+}
+#legend{
+  right:16px;bottom:74px;text-align:right;font-family:"IBM Plex Mono",monospace;
+  font-size:10px;color:var(--ink-dim);line-height:1.8;
+}
+#legend[hidden]{display:none}
+#legend i{display:inline-block;width:9px;height:9px;border-radius:2px;
+  background:var(--aqua);opacity:.55;margin-left:7px;vertical-align:middle}
+
+/* port toggles + options (fittings families) */
+#cfg{position:absolute;left:20px;top:84px;display:flex;flex-direction:column;gap:8px;
+  padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);
+  background:rgba(18,33,42,.86);backdrop-filter:blur(6px);max-width:min(440px,70vw)}
+#cfg[hidden]{display:none}
+#cfg .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#cfg .lab{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-dim);min-width:52px}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:4px 9px;border-radius:var(--r);
+  border:1px solid var(--line);color:var(--ink-dim);background:transparent}
+.chip:hover{color:var(--ink);border-color:var(--aqua)}
+.chip[aria-pressed="true"]{color:var(--deep);background:var(--aqua);border-color:var(--aqua)}
+.chip:disabled{opacity:.3;cursor:default}
+.chip.port b{font-weight:600}
+.chip.port.m{border-color:var(--aqua);color:var(--aqua)}
+.chip.port.f{border-color:var(--amber);color:var(--amber)}
+/* on-screen port labels (never part of the STL) */
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.plabel{position:absolute;transform:translate(-50%,-50%);font-family:"IBM Plex Mono",monospace;
+  font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;white-space:nowrap;
+  background:rgba(12,21,25,.82);border:1px solid;box-shadow:0 1px 6px rgba(0,0,0,.4)}
+.plabel.f{color:var(--amber);border-color:var(--amber)}
+.plabel.m{color:var(--aqua);border-color:var(--aqua)}
+#loading{
+  position:absolute;inset:0;display:grid;place-content:center;gap:10px;
+  justify-items:center;background:var(--deep);font-family:"IBM Plex Mono",monospace;
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);
+}
+#loading.gone{display:none}
+
+@media (max-width:820px){
+  #shell{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+  #stage{min-height:0;min-width:0}
+  #rail{border-right:none;border-bottom:1px solid var(--line);max-height:40vh}
+  #head p{display:none}
+  #spec{display:none}
+  #legend{display:none}
+  #hint{display:none}
+  /* phone: toolbar across the top of the view, options pinned to the bottom */
+  #tools{left:12px;right:12px;top:10px;align-items:stretch}
+  .trow{flex-wrap:wrap;justify-content:flex-end}
+  .tbtn{padding:6px 9px}
+  #cfg{left:12px;right:12px;top:auto;bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+    max-width:none}
+  #head{display:none}
+}
+#toast{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(18px + env(safe-area-inset-bottom, 0px));z-index:20;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+  font-family:"IBM Plex Mono",monospace;font-size:12px;padding:8px 14px;border-radius:var(--r)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="shell">
+  <aside id="rail">
+    <div id="brand">
+      <h1>Enclosure hardware</h1>
+      <p>Ball python water feature and pipe run. Review before printing.</p>
+    </div>
+    <nav id="list" aria-label="Parts"></nav>
+  </aside>
+
+  <main id="stage">
+    <canvas id="cv"></canvas>
+
+    <div class="overlay" id="head">
+      <h2 id="ttl">&nbsp;</h2>
+      <p id="sub">&nbsp;</p>
+    </div>
+
+    <div id="tools">
+      <div class="trow">
+        <button class="tbtn" id="bFit">Fit</button>
+        <button class="tbtn" id="bWire" aria-pressed="false">Wireframe</button>
+      </div>
+      <div class="trow">
+        <button class="tbtn" id="bWater" aria-pressed="false">Water</button>
+        <button class="tbtn" id="bCut" aria-pressed="false">Section</button>
+        <button class="tbtn" id="bLab" aria-pressed="true">Labels</button>
+      </div>
+      <div class="trow">
+        <button class="tbtn" id="bDl" title="Download this part as an STL">Download STL</button>
+        <button class="tbtn" id="bDlAll" title="Every printable part in one zip">All STLs .zip</button>
+      </div>
+      <div id="cutwrap" hidden>
+        <label for="cutax">axis</label>
+        <button class="tbtn" id="cutax">X</button>
+        <input type="range" id="cutpos" min="0" max="100" value="50"
+               aria-label="Section plane position">
+      </div>
+    </div>
+
+    <div id="labels"></div>
+    <div id="cfg" hidden></div>
+    <div class="overlay" id="spec"></div>
+    <div class="overlay" id="legend" hidden>
+      water at working level <i></i>
+    </div>
+    <div class="overlay" id="hint">
+      drag &middot; orbit<br>
+      wheel &middot; zoom<br>
+      right-drag &middot; pan
+    </div>
+    <div id="loading">loading geometry</div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/*DATA*/
+</script>
+<script>
+/* shared sub-parts: {ref:[part id, index]} -> that very object (decoded once) */
+for(const p of Object.values(PARTS)) if(p.sub)
+  p.sub = p.sub.map(q => q.ref ? PARTS[q.ref[0]].sub[q.ref[1]] : q);
+</script>
+<script>
+(function(){
+"use strict";
+if (typeof THREE === 'undefined'){
+  document.getElementById('loading').innerHTML =
+    'three.js did not load &mdash; connect to the internet and reload this file';
+  return;
+}
+const cv = document.getElementById('cv');
+const stage = document.getElementById('stage');
+
+const renderer = new THREE.WebGLRenderer({canvas:cv, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.localClippingEnabled = true;
+renderer.setClearColor(0x0C1519, 1);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0C1519, 600, 1500);
+
+const camera = new THREE.PerspectiveCamera(38, 1, 1, 4000);
+camera.up.set(0,0,1);
+
+scene.add(new THREE.HemisphereLight(0xBFE4EA, 0x0B1417, 0.72));
+const key = new THREE.DirectionalLight(0xFFFFFF, 0.78);
+key.position.set(-260,-380,420); scene.add(key);
+const fill = new THREE.DirectionalLight(0x8FD6D0, 0.30);
+fill.position.set(320,220,140); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xA9C6D2, 0.22);
+rim.position.set(120,420,-240); scene.add(rim);
+
+// ground grid, rotated into the Z-up world
+const grid = new THREE.GridHelper(600, 24, 0x2A4653, 0x1B303A);
+grid.rotation.x = Math.PI/2;
+scene.add(grid);
+
+const partMat = new THREE.MeshStandardMaterial({
+  color:0xC3D2D8, roughness:0.56, metalness:0.06, flatShading:true,
+  side:THREE.FrontSide
+});
+const waterMat = new THREE.MeshStandardMaterial({
+  color:0x4FD1C0, roughness:0.15, metalness:0.0, transparent:true,
+  opacity:0.34, side:THREE.DoubleSide, depthWrite:false
+});
+const clipPlane = new THREE.Plane(new THREE.Vector3(-1,0,0), 0);
+
+let current = null, waterGroup = null, bbox = null;
+
+/* ---------- geometry decode ---------- */
+/* Packs with z=1 are zlib-compressed; inflate once, on first use, and cache.
+   Everything that needs geometry awaits ready(p) first. */
+/* Hosted build: geometry lives in data/chunk_N.json next to the page and is
+   fetched the first time a part in that chunk is shown (p.ck, p.key). */
+const CHUNKS = {};
+function loadChunk(k){
+  return CHUNKS[k] || (CHUNKS[k] = fetch(`data/chunk_${k}.json`).then(r=>{
+    if(!r.ok) throw new Error('chunk ' + k + ': ' + r.status); return r.json(); }));
+}
+async function ready(p){
+  if(p.src){ await ready(PARTS[p.src]); p._raw = true; return; }   /* a turned-around twin */
+  if(p.sub){ for(const q of p.sub) await ready(q); p._raw = true; return; }   /* multi-part (iris) */
+  if(p._raw || (p.fmt !== 'f32i' && p.fmt !== 'q3')) return;
+  if(!p.b64 && p.ck != null) p.b64 = (await loadChunk(p.ck))[p.key];
+  const bin = atob(p.b64), bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  if(!p.z){ p._raw = bytes; return; }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'));
+  p._raw = new Uint8Array(await new Response(stream).arrayBuffer());
+}
+function decodeQ3(p){                /* see _encode() in tools/fittings_viewer.py */
+  const b = p._raw, nv = p.nv, nf = p.nf;
+  let off = 0;
+  function col(n){                     /* 4 byte planes -> int32 column */
+    const out = new Int32Array(n);
+    for(let i=0;i<n;i++)
+      out[i] = b[off+i] | (b[off+n+i]<<8) | (b[off+2*n+i]<<16) | (b[off+3*n+i]<<24);
+    off += 4*n; return out;
+  }
+  const dx = col(nv), dy = col(nv), dz = col(nv), d0 = col(nf), r1 = col(nf), r2 = col(nf);
+  const V = new Float32Array(nv*3);
+  let x=0, y=0, z=0;
+  const u = p.u || 10000;              /* grid: 1000 = 1 um, 10000 = 0.1 um */
+  for(let i=0;i<nv;i++){ x+=dx[i]; y+=dy[i]; z+=dz[i]; V[3*i]=x/u; V[3*i+1]=y/u; V[3*i+2]=z/u; }
+  const pos = new Float32Array(nf*9);
+  let f0 = 0;
+  for(let t=0;t<nf;t++){
+    f0 += d0[t];
+    const ids = [f0, f0 + r1[t], f0 + r2[t]];
+    for(let k=0;k<3;k++){ const v = ids[k]*3; pos[t*9+k*3]=V[v]; pos[t*9+k*3+1]=V[v+1]; pos[t*9+k*3+2]=V[v+2]; }
+  }
+  return pos;
+}
+function decodePositions(p){
+  if(p.src){                 /* twin: the source part through its 3x4 transform */
+    const s = decodePositions(PARTS[p.src]), x = p.xf, o = new Float32Array(s.length);
+    for(let i=0;i<s.length;i+=3){
+      const X = s[i], Y = s[i+1], Z = s[i+2];
+      o[i]   = x[0]*X + x[1]*Y + x[2]*Z  + x[3];
+      o[i+1] = x[4]*X + x[5]*Y + x[6]*Z  + x[7];
+      o[i+2] = x[8]*X + x[9]*Y + x[10]*Z + x[11];
+    }
+    return o;
+  }
+  if(p.sub && p.dl) return decodePositions({sub: p.dl.map(i=>p.sub[i])});
+  if(p.fmt === 'q3' && !p.sub) return decodeQ3(p);
+  if(p.sub){                       /* the bodies, one after another = the same STL */
+    const parts = p.sub.map(decodePositions);
+    const out = new Float32Array(parts.reduce((a,b)=>a+b.length,0));
+    let o = 0; parts.forEach(a=>{ out.set(a,o); o += a.length; });
+    return out;
+  }
+  if(p.fmt === 'f32i'){            /* exact: float32 verts + uint32 faces */
+    const bytes = p._raw;
+    const V = new Float32Array(bytes.buffer, 0, p.nv*3);
+    const F = new Uint32Array(bytes.buffer, p.nv*12, p.nf*3);
+    const pos = new Float32Array(p.nf*9);
+    for(let i=0;i<F.length;i++){ const v=F[i]*3; pos[i*3]=V[v]; pos[i*3+1]=V[v+1]; pos[i*3+2]=V[v+2]; }
+    return pos;
+  }
+  const bin = atob(p.b64);
+  const n = bin.length;
+  const bytes = new Uint8Array(n);
+  for(let i=0;i<n;i++) bytes[i] = bin.charCodeAt(i);
+  const q = new Uint16Array(bytes.buffer);
+  const pos = new Float32Array(q.length);
+  const o = p.org, s = p.scl;
+  for(let i=0;i<q.length;i+=3){
+    pos[i]   = q[i]  *s + o[0];
+    pos[i+1] = q[i+1]*s + o[1];
+    pos[i+2] = q[i+2]*s + o[2];
+  }
+  return pos;
+}
+function decode(p){
+  const pos = decodePositions(p);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  g.computeVertexNormals();     // non-indexed -> true flat faces
+  g.computeBoundingBox();
+  return g;
+}
+
+/* ---------- orbit ---------- */
+const orbit = {tgt:new THREE.Vector3(), dist:400, az:-0.9, el:0.52};
+function applyCam(){
+  orbit.el = Math.max(-1.5, Math.min(1.5, orbit.el));
+  orbit.dist = Math.max(30, Math.min(3000, orbit.dist));
+  const ce = Math.cos(orbit.el);
+  camera.position.set(
+    orbit.tgt.x + orbit.dist*ce*Math.cos(orbit.az),
+    orbit.tgt.y + orbit.dist*ce*Math.sin(orbit.az),
+    orbit.tgt.z + orbit.dist*Math.sin(orbit.el)
+  );
+  camera.lookAt(orbit.tgt);
+}
+let drag=null;
+cv.addEventListener('contextmenu', e=>e.preventDefault());
+cv.addEventListener('pointerdown', e=>{
+  cv.setPointerCapture(e.pointerId);
+  drag={x:e.clientX,y:e.clientY,btn:e.button};
+});
+cv.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+  drag.x=e.clientX; drag.y=e.clientY;
+  if(drag.btn===2 || e.shiftKey){
+    const k = orbit.dist*0.0016;
+    const right = new THREE.Vector3().subVectors(camera.position,orbit.tgt)
+                    .cross(camera.up).normalize();
+    const up = new THREE.Vector3().crossVectors(right,
+                 new THREE.Vector3().subVectors(camera.position,orbit.tgt)).normalize();
+    orbit.tgt.addScaledVector(right, -dx*k);
+    orbit.tgt.addScaledVector(up, -dy*k);
+  } else {
+    orbit.az -= dx*0.0072;
+    orbit.el += dy*0.0072;
+  }
+  applyCam();
+});
+addEventListener('pointerup', ()=>{drag=null});
+cv.addEventListener('wheel', e=>{
+  e.preventDefault();
+  orbit.dist *= Math.exp(e.deltaY*0.0011);
+  applyCam();
+},{passive:false});
+
+function fit(){
+  if(!bbox) return;
+  const c = new THREE.Vector3(); bbox.getCenter(c);
+  const s = new THREE.Vector3(); bbox.getSize(s);
+  orbit.tgt.copy(c);
+  orbit.dist = Math.max(s.x,s.y,s.z) * 2.15;
+  applyCam();
+}
+
+/* ---------- water overlay ---------- */
+function buildWater(){
+  const g = new THREE.Group();
+  WATER.forEach(w=>{
+    const h = w.z1 - w.z0;
+    if(h<=0) return;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w.w, w.d, h), waterMat);
+    m.position.set(w.cx, w.cy, w.z0 + h/2);
+    g.add(m);
+  });
+  return g;
+}
+
+/* ---------- part loading ---------- */
+let curId = null;
+const famOf = id => PARTS[id].family || id;
+const sel = {};                               /* family -> current variant id */
+async function show(name){
+  const p = PARTS[name];
+  curId = name; sel[famOf(name)] = name;
+  await ready(p);
+  if(curId !== name) return;              /* a newer click won */
+  if(current){ scene.remove(current); current.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
+  anim = null; animPhi = 0;
+  if(waterGroup){ scene.remove(waterGroup); waterGroup=null; }
+
+  if(p.sub){                       /* separate bodies so the mechanism can move */
+    current = new THREE.Group();
+    p.sub.forEach(q=> current.add(new THREE.Mesh(decode(q), partMat)));
+  } else {
+    current = new THREE.Mesh(decode(p), partMat);
+  }
+  scene.add(current);
+  bbox = new THREE.Box3().setFromObject(current);
+
+  const dl = document.getElementById('bDl');
+  if(dl){ dl.disabled = !printable(name);
+          dl.title = dl.disabled ? 'Preview only - download the parts individually'
+                                 : 'Download ' + (p.file || name + '.stl'); }
+  const isWF = p.group === 'Waterfall';
+  document.getElementById('bWater').disabled = !isWF;
+  document.getElementById('bWater').style.opacity = isWF ? 1 : .35;
+  if(isWF && waterOn){ waterGroup = buildWater(); scene.add(waterGroup); }
+  document.getElementById('legend').hidden = !(isWF && waterOn);
+
+  document.getElementById('ttl').textContent = famOf(name).replace(/_/g,' ');
+  document.getElementById('sub').textContent = p.note;
+  const d = p.dims;
+  let html = `<div><span class="k">bounding box</span><b>${d[0]} &times; ${d[1]} &times; ${d[2]} mm</b></div>`
+           + `<div><span class="k">material</span><b>${p.vol} cm&sup3;</b> &middot; ${p.tris} facets</div>`;
+  for(const k in p.meta)
+    html += `<div><span class="k">${k.toLowerCase()}</span><b>${p.meta[k]}</b></div>`;
+  document.getElementById('spec').innerHTML = html;
+
+  document.querySelectorAll('.item').forEach(b=>
+    b.setAttribute('aria-current', String(b.dataset.name===famOf(name))));
+  buildCfg(name);
+  buildLabels(p);
+
+  updateClip();
+  fit();
+  if(p.anim){ orbit.el = p.anim.el ?? 1.25; orbit.dist *= 0.8; applyCam(); applyCover(p); }   /* face the moving part */
+}
+
+/* ---------- rail ---------- */
+const list = document.getElementById('list');
+const DEF = (typeof DEFAULTS !== 'undefined') ? DEFAULTS : {};
+const fams = {}, groups = {};                 /* family -> [variant ids] */
+Object.keys(PARTS).forEach(id=>{
+  const f = famOf(id);
+  if(!fams[f]){ fams[f] = []; (groups[PARTS[id].group] ||= []).push(f); }
+  fams[f].push(id);
+});
+const firstOf = f => sel[f] || DEF[f] || fams[f][0];
+Object.keys(groups).forEach(g=>{
+  const h = document.createElement('div');
+  h.className='grp'; h.textContent=g; list.appendChild(h);
+  groups[g].forEach(f=>{
+    const b = document.createElement('button');
+    b.className='item'; b.dataset.name=f;
+    const n = fams[f].length > 1 ? `<span class="sz">${fams[f].length} options</span>`
+                                 : `<span class="sz">${Math.round(Math.max(...PARTS[fams[f][0]].dims))}</span>`;
+    b.innerHTML = `<span class="tick"></span><span class="nm">${f.replace(/_/g,' ')}</span>` + n;
+    b.addEventListener('click', ()=>show(firstOf(f)));
+    list.appendChild(b);
+  });
+});
+
+/* ---------- per-port F/M toggles, angle, vent ---------- */
+function findVariant(f, cfg){
+  return fams[f].find(id=>{ const c = PARTS[id].cfg;
+    return c.g === cfg.g && (c.angle ?? null) === (cfg.angle ?? null) && (c.vent || '') === (cfg.vent || '')
+        && (c.gate || '') === (cfg.gate || ''); });
+}
+function buildCfg(id){
+  const box = document.getElementById('cfg'), p = PARTS[id];
+  if(!p.cfg){ box.hidden = true; box.innerHTML=''; return; }
+  const f = famOf(id), c = p.cfg;
+  const names = p.ports.map(q=>q.label);
+  let html = '<div class="row"><span class="lab">ports</span>';
+  names.forEach((n,i)=>{ const g = c.g[i];
+    html += `<button class="chip port ${g==='M'?'m':'f'}" data-port="${i}" title="click to swap female/male">`
+          + `<b>${n}</b> ${g==='M'?'&#9794; male':'&#9792; female'}</button>`; });
+  html += '</div>';
+  const angles = [...new Set(fams[f].map(v=>PARTS[v].cfg.angle).filter(a=>a!=null))].sort((a,b)=>a-b);
+  if(angles.length > 1){
+    html += '<div class="row"><span class="lab">angle</span>';
+    angles.forEach(a=> html += `<button class="chip" data-angle="${a}" aria-pressed="${a===c.angle}">${a}&deg;</button>`);
+    html += '</div>';
+  }
+  const vstyles = [...new Set(fams[f].map(v=>PARTS[v].cfg.vent).filter(v=>v!==undefined))];
+  if(vstyles.length > 1 || (vstyles.length === 1 && vstyles[0])){
+    const opts = ['', ...vstyles.filter(v=>v).sort()];
+    html += '<div class="row"><span class="lab">vents</span>';
+    opts.forEach(v=>{ const ok = !!findVariant(f, {...c, vent:v});
+      html += `<button class="chip" data-vent="${v}" aria-pressed="${(c.vent||'')===v}"`
+            + `${ok?'':' disabled title="vents at this angle are in the hosted viewer"'}>${v||'off'}</button>`; });
+    html += '</div>';
+  }
+  const gates = [...new Set(fams[f].map(v=>PARTS[v].cfg.gate).filter(v=>v!==undefined))];
+  if(gates.length > 1){
+    html += '<div class="row"><span class="lab">variant</span>';
+    gates.sort().forEach(v=> html += `<button class="chip" data-gatev="${v}" aria-pressed="${(c.gate||'')===v}">${v ? 'with gate' : 'plain'}</button>`);
+    html += '</div>';
+  }
+  if(p.anim){
+    const closed = animTarget(p) > 0, iris = p.anim.kind === 'pivot';
+    html += `<div class="row"><span class="lab">gate</span><button class="chip" id="bAct">`
+          + `${actLabel(p, !closed)}</button>`
+          + (iris ? `<button class="chip" id="bCov" aria-pressed="${coverHidden}">Hide cover</button>` : '')
+          + `<span class="lab" id="actDeg" style="min-width:0">${stateLabel(p, animPhi)}</span></div>`;
+  }
+  if(p.dl_parts){                       /* one download per printed piece */
+    html += '<div class="row"><span class="lab">print</span>';
+    p.dl_parts.forEach(([lab, n], i)=> html += `<button class="chip" data-dlp="${i}">Download ${lab.toLowerCase()}</button>`);
+    html += '</div>';
+  }
+  box.innerHTML = html; box.hidden = false;
+  const act = document.getElementById('bAct');
+  if(act) act.addEventListener('click', ()=>actuate(p, act));
+  box.querySelectorAll('[data-dlp]').forEach(b=>b.addEventListener('click', ()=>{
+    const [lab, n, idx] = p.dl_parts[+b.dataset.dlp];
+    if(idx) dlPiece(curId, lab, idx); else dlPart(n === '.' ? curId : n); }));
+  box.querySelectorAll('[data-gatev]').forEach(b=>b.addEventListener('click',()=>{
+    const v = findVariant(f, {...c, gate:b.dataset.gatev}); if(v) show(v); }));
+  const cov = document.getElementById('bCov');
+  if(cov) cov.addEventListener('click', ()=>{ coverHidden = !coverHidden;
+    cov.setAttribute('aria-pressed', coverHidden); applyCover(p); });
+  box.querySelectorAll('[data-port]').forEach(b=>b.addEventListener('click',()=>{
+    const i = +b.dataset.port, g = c.g.split('');
+    g[i] = g[i]==='M' ? 'F' : 'M';
+    const v = findVariant(f, {...c, g:g.join('')}); if(v) show(v); }));
+  box.querySelectorAll('[data-angle]').forEach(b=>b.addEventListener('click',()=>{
+    const a = +b.dataset.angle;
+    const v = findVariant(f, {...c, angle:a}) || findVariant(f, {...c, angle:a, vent:''});
+    if(v) show(v); }));
+  box.querySelectorAll('[data-vent]').forEach(b=>b.addEventListener('click',()=>{
+    const v = findVariant(f, {...c, vent:b.dataset.vent}); if(v) show(v); }));
+}
+
+/* ---------- iris actuation ----------
+   Every moving part turns about its own vertical axis: the two drive rings
+   about the tube axis by the lever angle, each leaf about its pivot by the
+   leaf angle from the table (iris_leaf_angle() in fittings.py - a dwell at
+   each end, then the drive-pin curve). Parts are packed OPEN (lever 0). */
+let anim = null, animPhi = 0, coverHidden = false;
+const ANIM_MS = 4500;
+function applyCover(p){          /* hide the cover + upper ring to watch the leaves */
+  if(!current || !current.children || !p.anim || !p.anim.hide) return;
+  p.anim.hide.forEach(i=>{ if(current.children[i]) current.children[i].visible = !coverHidden; });
+}                          /* nice and slow */
+function animTarget(p){ return anim ? anim.to : (animPhi > 0.5 ? p.anim.rot : 0); }
+function leafAng(a, phi){
+  const t = a.tab;
+  if(phi <= t[0][0]) return t[0][1];
+  for(let i=1;i<t.length;i++){
+    if(phi <= t[i][0]){ const f = (phi - t[i-1][0]) / (t[i][0] - t[i-1][0]);
+      return t[i-1][1] + f * (t[i][1] - t[i-1][1]); }
+  }
+  return t[t.length-1][1];
+}
+function actLabel(p, toClosed){
+  const w = p.anim.kind === 'pivot' ? 'iris' : 'gate';
+  return (toClosed ? 'Close ' : 'Open ') + w;
+}
+function stateLabel(p, phi){
+  if(p.anim.kind === 'pivot') return `lever ${Math.round(phi)}&deg;`;
+  return phi < 0.02 ? 'open' : phi > 0.98 ? 'closed' : `${Math.round(phi*100)}% in`;
+}
+function applyIris(p, phi){
+  if(!current || !current.children || !p.anim) return;
+  const a = p.anim, kids = current.children;
+  if(a.kind === 'slide'){                       /* blade slides along the arm */
+    kids[a.mover].position.set(a.vec[0]*phi, a.vec[1]*phi, a.vec[2]*phi);
+    const lab = document.getElementById('actDeg');
+    if(lab) lab.innerHTML = stateLabel(p, phi);
+    return;
+  }
+  const la = leafAng(a, phi);
+  for(const [i, cx, cy, kind] of a.movers){
+    const th = (kind === 'r' ? phi : la) * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+    kids[i].rotation.z = th;
+    kids[i].position.set(cx - (c*cx - s*cy), cy - (s*cx + c*cy), 0);
+  }
+  const lab = document.getElementById('actDeg');
+  if(lab) lab.innerHTML = `lever ${Math.round(phi)}&deg;`;
+}
+function actuate(p, btn){
+  const to = animTarget(p) > 0 ? 0 : p.anim.rot;
+  anim = {p, from: animPhi, to, t0: performance.now(),
+          dur: ANIM_MS * Math.abs(to - animPhi) / p.anim.rot || 1};
+  btn.textContent = actLabel(p, !(to > 0));
+}
+function stepAnim(){
+  if(!anim) return;
+  let t = Math.min(1, (performance.now() - anim.t0) / anim.dur);
+  const e = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;      /* ease in-out */
+  animPhi = anim.from + (anim.to - anim.from) * e;
+  applyIris(anim.p, animPhi);
+  if(t >= 1) anim = null;
+}
+
+/* ---------- on-screen port labels ---------- */
+let labelsOn = true, labelEls = [];
+function buildLabels(p){
+  const host = document.getElementById('labels');
+  host.innerHTML = ''; labelEls = [];
+  (p.ports || []).forEach(q=>{
+    const d = document.createElement('div');
+    d.className = 'plabel ' + (q.g==='M' ? 'm' : 'f');
+    d.innerHTML = `${q.label} ${q.g==='M' ? '&#9794; M' : '&#9792; F'}`;
+    host.appendChild(d);
+    labelEls.push({el:d, v:new THREE.Vector3(...q.pos)});
+  });
+}
+function placeLabels(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  labelEls.forEach(({el, v})=>{
+    const q = v.clone().project(camera);
+    const vis = labelsOn && q.z < 1 && Math.abs(q.x) < 1.1 && Math.abs(q.y) < 1.1;
+    el.style.display = vis ? '' : 'none';
+    if(vis){ el.style.left = ((q.x+1)/2*w) + 'px'; el.style.top = ((1-q.y)/2*h) + 'px'; }
+  });
+}
+document.getElementById('bLab').addEventListener('click', e=>{
+  labelsOn = !labelsOn; e.currentTarget.setAttribute('aria-pressed', labelsOn); });
+
+/* ---------- tools ---------- */
+let wireOn=false, waterOn=false, cutOn=false, cutAxis=0;
+const AX = ['X','Y','Z'];
+const bWire=document.getElementById('bWire'), bWater=document.getElementById('bWater'),
+      bCut=document.getElementById('bCut'), cutwrap=document.getElementById('cutwrap'),
+      cutax=document.getElementById('cutax'), cutpos=document.getElementById('cutpos');
+
+bWire.addEventListener('click',()=>{
+  wireOn=!wireOn; partMat.wireframe=wireOn; bWire.setAttribute('aria-pressed',wireOn);
+});
+bWater.addEventListener('click',()=>{
+  waterOn=!waterOn; bWater.setAttribute('aria-pressed',waterOn);
+  if(curId) show(curId);
+});
+bCut.addEventListener('click',()=>{
+  cutOn=!cutOn; bCut.setAttribute('aria-pressed',cutOn); cutwrap.hidden=!cutOn;
+  updateClip();
+});
+cutax.addEventListener('click',()=>{
+  cutAxis=(cutAxis+1)%3; cutax.textContent=AX[cutAxis]; updateClip();
+});
+cutpos.addEventListener('input', updateClip);
+document.getElementById('bFit').addEventListener('click', fit);
+
+/* ---------- downloads ----------
+   Parts packed as fmt 'f32i' carry exact float32 vertices, so the STL written
+   here matches the exported file bit for bit in geometry. (Older quantised
+   packs are rendered fine but must not be used for printing: rounding merges
+   near-coincident vertices.) Assemblies are previews, never offered. */
+const printable = n => PARTS[n].group !== 'Assemblies' && (PARTS[n].fmt === 'f32i' || PARTS[n].fmt === 'q3');
+function stlBytes(pos){
+  const nt = pos.length / 9, buf = new ArrayBuffer(84 + 50 * nt), dv = new DataView(buf);
+  const head = 'binary STL from part viewer';
+  for(let i=0;i<head.length;i++) dv.setUint8(i, head.charCodeAt(i));
+  dv.setUint32(80, nt, true);
+  let o = 84;
+  for(let t=0;t<nt;t++){
+    const k = t*9;
+    const ax=pos[k],ay=pos[k+1],az=pos[k+2],bx=pos[k+3],by=pos[k+4],bz=pos[k+5],
+          cx=pos[k+6],cy=pos[k+7],cz=pos[k+8];
+    let nx=(by-ay)*(cz-az)-(bz-az)*(cy-ay), ny=(bz-az)*(cx-ax)-(bx-ax)*(cz-az),
+        nz=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
+    const l = Math.hypot(nx,ny,nz) || 1;
+    dv.setFloat32(o,nx/l,true); dv.setFloat32(o+4,ny/l,true); dv.setFloat32(o+8,nz/l,true);
+    for(let j=0;j<9;j++) dv.setFloat32(o+12+4*j, pos[k+j], true);
+    dv.setUint16(o+48, 0, true);
+    o += 50;
+  }
+  return new Uint8Array(buf);
+}
+const CRC = (()=>{ const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = c&1 ? 0xEDB88320^(c>>>1) : c>>>1; t[n]=c>>>0; }
+  return t; })();
+function crc32(b){ let c=0xFFFFFFFF; for(let i=0;i<b.length;i++) c = CRC[(c^b[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function zipStore(files){            /* [{name, data:Uint8Array}] -> uncompressed .zip */
+  const enc = new TextEncoder(), local = [], central = [];
+  let off = 0;
+  files.forEach(f=>{
+    const nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint32(14,crc,true);
+    h.setUint32(18,sz,true); h.setUint32(22,sz,true); h.setUint16(26,nm.length,true);
+    local.push(new Uint8Array(h.buffer), nm, f.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true);
+    c.setUint32(16,crc,true); c.setUint32(20,sz,true); c.setUint32(24,sz,true);
+    c.setUint16(28,nm.length,true); c.setUint32(42,off,true);
+    central.push(new Uint8Array(c.buffer), nm);
+    off += 30 + nm.length + sz;
+  });
+  const csz = central.reduce((a,b)=>a+b.length,0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true);
+  e.setUint32(12,csz,true); e.setUint32(16,off,true);
+  return new Blob([...local, ...central, new Uint8Array(e.buffer)], {type:'application/zip'});
+}
+/* Saving. Hosted (claude.ai): the page may not start a download itself - it
+   offers the file through the downloads capability, which asks the viewer.
+   STL is not an allowed type there, so an STL goes out inside a .zip.
+   Opened as a local file: a plain download link. */
+const dlCap = (window.claude && window.claude.use)
+  ? window.claude.use('downloads').catch(()=>null) : Promise.resolve(null);
+function toast(msg){
+  let t = document.getElementById('toast');
+  if(!t){ t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._h); toast._h = setTimeout(()=>{ t.hidden = true; }, 3500);
+}
+async function save(blob, name){
+  const cap = await dlCap;
+  if(cap){
+    try{ await cap.save({filename: name, data: blob}); toast('Saved ' + name); }
+    catch(e){
+      if(e && e.code === 'declined') return;
+      toast(e && e.code === 'rate_limited' ? 'A save prompt is already open.' : 'Could not save ' + name + '.');
+    }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+}
+async function saveStl(bytes, name){
+  if(await dlCap) return save(zipStore([{name, data: bytes}]), name.replace(/\.stl$/i, '') + '.zip');
+  return save(new Blob([bytes], {type:'model/stl'}), name);
+}
+const bDl = document.getElementById('bDl'), bDlAll = document.getElementById('bDlAll');
+/* Multi-piece entries (flange set): each piece is one body of the entry,
+   shown assembled; a download lays it on the bed (lowest point to z = 0). */
+function piecePositions(p, idx){
+  const pos = decodePositions({sub: idx.map(i=>p.sub[i])});
+  let zmin = Infinity;
+  for(let i=2;i<pos.length;i+=3) if(pos[i] < zmin) zmin = pos[i];
+  for(let i=2;i<pos.length;i+=3) pos[i] -= zmin;
+  return pos;
+}
+function pieceName(p, lab){
+  return (p.file || 'part.stl').replace(/\.stl$/i, '') + '_' + lab.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.stl';
+}
+const pieceSets = p => (p.dl_parts || []).filter(d=>d[2]);
+async function dlPiece(n, lab, idx){
+  const p = PARTS[n]; await ready(p);
+  await saveStl(stlBytes(piecePositions(p, idx)), pieceName(p, lab));
+}
+async function dlPart(n){
+  if(!n || !printable(n)) return;
+  const p = PARTS[n];
+  await ready(p);
+  const sets = pieceSets(p);
+  if(sets.length)                          /* every printed piece, one STL each */
+    return save(zipStore(sets.map(([lab, , idx])=>({name: pieceName(p, lab), data: stlBytes(piecePositions(p, idx))}))),
+                (p.file || n).replace(/\.stl$/i, '') + '_parts.zip');
+  await saveStl(stlBytes(decodePositions(p)), p.file || n + '.stl');
+}
+bDl.addEventListener('click', ()=>dlPart(curId));
+bDlAll.addEventListener('click', ()=>{
+  /* the CURRENT choice of every family (not all 70 variants) + single parts */
+  const names = Object.keys(fams).map(f=>firstOf(f)).filter(printable);
+  bDlAll.textContent = 'Packing\u2026'; bDlAll.disabled = true;
+  setTimeout(async ()=>{
+    try{
+      for(const n of names) await ready(PARTS[n]);
+      const files = [];
+      names.forEach(n=>{ const p = PARTS[n], sets = pieceSets(p);
+        if(sets.length) sets.forEach(([lab, , idx])=>files.push({name: pieceName(p, lab), data: stlBytes(piecePositions(p, idx))}));
+        else files.push({name: p.file || n+'.stl', data: stlBytes(decodePositions(p))}); });
+      await save(zipStore(files), 'parts_stl.zip');
+    } finally { bDlAll.textContent = 'All STLs .zip'; bDlAll.disabled = false; }
+  }, 30);
+});
+
+function updateClip(){
+  if(!cutOn || !bbox){
+    partMat.clippingPlanes=null; partMat.side=THREE.FrontSide;
+    waterMat.clippingPlanes=null;
+    return;
+  }
+  const n=[0,0,0]; n[cutAxis]=-1;
+  clipPlane.normal.set(n[0],n[1],n[2]);
+  const lo=bbox.min.getComponent(cutAxis), hi=bbox.max.getComponent(cutAxis);
+  const t=cutpos.value/100;
+  clipPlane.constant = lo + (hi-lo)*t;
+  partMat.clippingPlanes=[clipPlane]; partMat.side=THREE.DoubleSide;
+  waterMat.clippingPlanes=[clipPlane];
+}
+
+/* ---------- resize + loop ---------- */
+function resize(){
+  const w=stage.clientWidth, h=stage.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+resize();
+show(PARTS.waterfall ? 'waterfall' : firstOf(Object.keys(fams)[0]));
+document.getElementById('loading').classList.add('gone');
+
+(function loop(){ requestAnimationFrame(loop); stepAnim(); renderer.render(scene,camera); placeLabels(); })();
+})();
+</script>
+</body>
+</html>
