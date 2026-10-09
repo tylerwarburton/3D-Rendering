@@ -222,7 +222,8 @@ NOTES = {
     'tee': 'Tee: A-B is the run, C the branch.',
     'y_fitting': 'Wye: trunk T, branches L and R at 45 degrees.',
     'flange': 'Tank wall port, 4 M6 bolts through any wall (thicker wall = longer bolts). '
-              'Gate: blade 25 mm in, one-piece body, short bolts, no extra screws.',
+              '94 x 94 plates, same 4 holes on both. Gate: blade 25 mm in, one-piece body; bolt heads outside, '
+              'washer + nut on the flat back plate under the skirt (M6 x 16 + wall).',
     'cap': 'End cap. Male (M) closes a female port; female (F) closes a male port. '
            'Push on, twist to lock. Prints closed end down, no supports.',
 }

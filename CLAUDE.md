@@ -1,59 +1,72 @@
 # Working on this repo
 
-Tyler's 3D-printed parts for a ball python enclosure: the **tube fittings**
-(`src/fittings.py`, active) and the **waterfall** (`src/waterfall.py`, printed,
-finished). He prints on a Bambu, 0.4 mm nozzle, 0.2 mm layers, PLA/PETG,
-**no slicer supports** - every part must print flat-side down without them.
+Tyler's repo for all his 3D-printed creations. One folder per project under
+`projects/`; shared tooling at the root. Each project holds its own context.
 
-## Setup and commands
+**Before touching a project, read its `CLAUDE.md`** (goal, real-world
+dimensions, project rules, parts). When Tyler gives a measurement, a test
+print result, or a decision, write it into that project's `CLAUDE.md`, and
+add a round to its `docs/DESIGN_LOG.md` for every design change.
+
+## Projects
+
+- `projects/python-enclosure/` - ball python enclosure: tube fittings
+  (active), waterfall (printed), snake hide.
+
+## Commands (repo root)
 
 ```bash
-pip install --break-system-packages trimesh manifold3d shapely numpy scipy rtree mapbox_earcut pillow pytest
-pytest -q                          # geometry checks, ~20 s - run after every change
-python build.py fittings           # STLs + out/fittings_viewer.html + out/site/ (~5 min)
-python tests/browser_viewer.py     # headless check of the built viewer (needs playwright)
+python new_project.py <name> "<goal>" [--from file.stl ...]   # start a project (from scratch or from STLs)
+python build.py <project> [parts/steps]                         # build -> out/<project>/
+python serve.py                                                 # http://localhost:8000 - every project + STL browser
+pytest -q                                                       # every project's tests
 ```
 
-Waterfall tooling (`python build.py`, default steps) also needs `cadquery`.
+## Starting / editing
 
-## Where things are
+- New idea -> `python new_project.py`. Fill in its `CLAUDE.md` goal + the
+  dimension table from Tyler's measurements before designing.
+- Editing an existing STL -> start a project `--from` it (or drop it in a
+  project's `source/`). Every source STL is a part as-is; write a function in
+  the project's parts module that `pk.load()`s it and changes it.
+- `shared/printkit.py` (`from shared import printkit as pk`): load, box,
+  cylinder, move/rotate/scale, union/difference/intersection (manifold3d),
+  on_bed, export (proves watertight), overhang_area, report.
+- `templates/project/` is what new projects are copied from.
 
-- `src/fittings.py` - every fitting. Socket/bore set once at the top; ports
-  use the J-slot twist latch. `assemble(outer, inner, ports, genders)` adds a
-  female socket or male end per port. Gate flange = `flange_set(g, gate=True)`
-  -> outer plate, one-piece gate body (`gn_body`), blade (`gn_blade(beta)`).
-- `tools/fittings_viewer.py` + `tools/viewer_template.html` - the viewer.
-  One build writes the single-file `out/fittings_viewer.html` (must stay
-  < ~31 MB) and `out/site/` (index.html + `data/chunk_N.json`, each <= 9 MB).
-- `tools/latch_check.py` - latch simulation, male-port check, print audit.
-- `docs/DESIGN_LOG.md` - every design round, why it changed, what was checked.
-  **Add a round there for each design change.**
-- `src/archive_rooms_iris.py` - removed room pods + iris gate, kept for later.
+## Printer + print rules (all projects unless a project says otherwise)
 
-## Hosted viewer
-
-The viewer is published as a claude.ai artifact:
-https://claude.ai/artifact/4rmFJKwMERt3m1cZXwumJz - republish with
-`file_path = out/site/index.html` and `files = {data/chunk_0..N.json}`; it
-needs the `downloads` capability (carried forward automatically).
-
-## Rules learned the hard way
-
-- Export through `fittings.export_ready()` (welds + proves watertight on a real
-  STL round trip). Validate every mesh after every boolean.
-- Never butt faces flush in a boolean - overlap 0.3 mm. Never section exactly on
-  a vertex plane.
-- Overhangs: 45 deg is the limit; rounded corners on a 45 deg taper come out
-  flatter - use sharp (mitre) offsets. Bridges are fine up to ~70 mm on his
-  printer if the moving part under them has sag room.
+- Bambu, 256 mm bed, 0.4 mm nozzle, 0.2 mm layers, PLA/PETG.
+- **No slicer supports**: every part prints flat side down. Overhangs 45 deg
+  max. Bridges are fine up to ~70 mm (leave sag room under moving parts).
+- Fit clearance 0.3 mm per side for parts that slide or fit together.
 - Print-in-place mechanisms fuse on his printer - make them assemblies.
-- Each `ProximityQuery` costs ~0.7 GB; build, use, free.
+- He dislikes extra hardware (screws, clips) and visual clutter.
+
+## Geometry rules learned the hard way
+
+- Export through `pk.export()` (or a project's own `export_ready()`): weld,
+  then prove watertight on a real STL round trip. Validate every mesh after
+  every boolean - booleans fail silently.
+- Never butt faces flush in a boolean - overlap 0.3 mm. Never section
+  exactly on a vertex plane.
+- Rounded corners on a 45 deg taper come out flatter than 45 - build tapers
+  from exact solids (offsets / Minkowski mixes), not hulls of mismatched shapes.
+- Verification numbers derive from parameters, never hard-coded.
 - `pkill -f <pattern>` from the same shell kills the shell - use pids.
-- Run the viewer build detached (`setsid nohup python3 -u -m tools.fittings_viewer &`).
+
+## Shared tooling
+
+- `serve.py` - serves `out/`; home lists every `out/<project>/` (its
+  `site/` configurator, viewers, STLs) + the STL browser.
+- `shared/stl_browser.html` - any STL (listed or dropped): size, bed fit,
+  volume, grams, >45 deg overhangs.
+- `shared/render.py` - numpy z-buffer renderer for PNG review sheets.
+- Outputs (`out/`) and STLs are git-ignored, except `projects/*/source/*.stl`.
 
 ## How Tyler works
 
-Short messages, often typed fast. He judges by looking at the viewer, so
-render or screenshot changes before calling them done. He dislikes extra
-hardware (screws, clips) and visual clutter; keeps things simple and
-uniform. Ask before big redesigns when there are real trade-offs.
+Short messages, often typed fast. He judges by looking, so render or
+screenshot changes (serve.py + Chrome) before calling them done. Keeps
+things simple and uniform. Ask before big redesigns when there are real
+trade-offs.

@@ -10,7 +10,8 @@ import numpy as np
 import cadquery as cq
 import trimesh
 
-from . import paths, render as R, solids
+from . import paths, solids
+from shared import render as R
 import waterfall as W
 
 AQUA = (70, 190, 178)

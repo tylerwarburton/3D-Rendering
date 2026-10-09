@@ -255,6 +255,98 @@ its blade (first try had a loose push-in blade; he wanted a real knife gate).
   Download STL give the body only (blade is gate_blade.stl). Mid-travel the
   check shows ~1.6 mm3 overlap = the bump on the wall (intended interference).
 
+### Round 27 - no nut recess (washer goes there) (2026-10-09)
+- Hex recesses removed (`GN_NUT` gone): back plate is flat with plain holes;
+  washer + nut sit on it. Bolt = 4 + wall + 4 + washer 1.6 + nut 5 + ~1.5
+  = 16 mm + wall (3 mm wall -> M6x20). Skirt >= 3.5 mm clear of a 12 mm washer.
+
+### Round 26 - flange bolts out at the corners, nuts visible under the skirt (2026-10-09)
+Tyler didn't like the hidden nut pockets (Round 25): wants the bolts visible,
+holes nearer the edge, fine for them to sit under the sloping gate.
+- `FLANGE_BOLT` 34.45 -> 40.5 (all flanges; 3.25 mm to the plate edge).
+- Gate: bolt heads OUTSIDE the tank on the outer plate; nuts INSIDE in 2.5 mm
+  hex recesses in the back plate top (`GN_NUT` = 10 AF, 2.5 deep, +0.3) so
+  they can't turn -> tighten from outside. Bolt = 13 mm + wall (3 -> M6x16).
+- Skirt back to the Round 24 tube-hugging loft (`GN_FOOT` R20, +y 42), fillet
+  3: >= 3.2 mm clear of every nut up to its top, 1.3 mm at the bolt tip.
+  Block corners still overhang the nuts above z 21 (not in the way).
+- Blind pockets + their bridge allowance in the test removed.
+- pytest 20/20; all flange parts watertight F/M; blade 0 / 4.16 / 0 mm3.
+
+### Round 25 - every flange plate 94 x 94, one bolt pattern, nut pockets (2026-10-09)
+Tyler printed an older gate plate (wider than tall): the height was ~2 mm
+short; wants 94 x 94 and the bolt holes less spread (the +2.5 widening went
+too far). Gate bolts may go through the gate / footprint may change.
+- `FLANGE_W = 94`, `FLANGE_BOLT = 34.45`: plain flange, back plate, gate outer
+  plate and gate body plate all 94 x 94 with holes at (+-34.45, +-34.45) -> the
+  same wall holes fit plain or gated. `FLANGE_GROW`, `FLANGE_HOLE_INSET`,
+  `GN_BOSS_R` removed; `GN_BOLT` = the shared pattern.
+- On a 94 plate the bolts can't sit outside the gate block with wrench room,
+  so they now come in from OUTSIDE the tank into M6 nuts pushed into hex
+  pockets on the gate body's wall face (`GN_NUT` 10 AF x 5, +0.3), blind hole
+  to bp + 8. No tools inside the tank. Bolt = 15 mm + wall (3 mm -> M6x18).
+- Pedestal footprint (`GN_FOOT`) now a 86 mm rounded square (R10) so the nut
+  pockets sit in solid plastic (>= 2 mm walls); fillet 3. Block unchanged;
+  its open end overhangs the plate edge by 5 mm (above the plate, fine).
+- Print test: nut-pocket roofs + bolt-hole tops allowed as bridges (10 mm).
+- pytest 20/20; blade 0 overlap open/closed; viewer checked.
+
+### Round 24 - gate block: one smooth rounded pedestal (2026-10-09)
+Tyler: the Round 23 slope wasn't rounded and looked weird (pyramid + cone
+union left creases and arch-shaped intersections).
+- `_gn_housing()` rewritten: a loft from a rounded footprint around the tube
+  (`GN_FOOT` = corner R20, +y end at 42) to the block outline (R6). Layers are
+  Minkowski mixes of the two (sections of their hull), so corners blend arc
+  to arc - no facets, no creases. Eases into vertical walls over 5 mm, ending
+  just under the slot floor; 6 mm concave fillet onto the plate; R3 top edge.
+- Constraint that shapes it: tube r34.9 vs block x 38.5 leaves 3.6 mm for the
+  side taper, so the sides are near-vertical; only the +y end really slopes.
+  Max taper rate 0.93 mm/mm (< 45 deg) -> 0 mm2 overhang.
+- Fillet foot 9.9 mm from each bolt centre (socket room). Blade 0 overlap
+  open/closed, 4.16 mm3 between. Body 160 cm3. pytest 20/20; viewer checked.
+
+### Round 23 - square gate plates; rounded block, skirt down to the base (2026-10-09)
+Tyler: plate height = width (holes stay); round/smooth the gate block edges
+and slope it down to the base better.
+- `_gn_plate2d`: square, 118 x 118 (outer + body back plate). Bolts unchanged.
+- `_gn_housing()` replaces the bare pyramid + tube stub: (45 deg pyramid U 45
+  deg cone flaring out from the tube) cut by the block outline (plan corners
+  R6, top edge R3), + a 6 mm concave fillet onto the plate = (cone + f) ^
+  (block wall + f). `GN_ROUND` = (6, 3, 6).
+- Why not an outward flare to the plate: it would cover the bolts. Why not
+  one hull of tube + rounded block: hull faces came out ~38 deg at the
+  corners (same trap as Round 19). Built from exact solids instead - every
+  face is 45 deg, vertical or upward: 0.12 mm2 over 45 (rounding noise).
+- Bolt wrench room unchanged (9.5 mm to the block, 18 mm at the plate).
+  Blade: 0 overlap open/closed, 4.16 mm3 between. Body 154 cm3 (was 127).
+- pytest 20/20; checked in the viewer.
+
+### Round 22 - gate outer plate flat, no centring lip (2026-10-09)
+Tyler: plate-to-base joint should be flush flat, not semi-interlocking.
+- `gn_outer()`: removed the 1.5 mm centring lip (`GN_LIP` gone); plate is a
+  flat 4 mm slab with bore + bolt holes. Bolts alone locate it.
+- pytest 20/20; section view checked in the viewer.
+
+### Round 21 - gate blade grip bar (2026-10-09)
+Tyler: is the click right, and make the handle easier to grab (simpler than
+the slide gate's knob).
+- Click checked by sweeping the blade: 0 mm3 overlap at open and closed (bumps
+  home in the notches), 4.16 mm3 everywhere between (bumps on the walls) ->
+  it snaps at both ends.
+- `_gn_grip`: bar across the pull tab's far end, `GN_GRIP` 6 thick x 12 tall
+  above the blade, round top (prints flat, no overhang), 55.5 long. Tab
+  lengthened 4 mm (top+24) to fit it past the finger slot. Bar is >= 20 mm
+  outside the housing at every blade position.
+- pytest 20/20 (blade collisions + print audit cover it); checked in viewer.
+
+### Round 20 - flange plates 5 mm wider, bolt holes unchanged (2026-10-09)
+Tyler: make the flange base footprint 2.5 mm bigger on every side, holes stay.
+- `FLANGE_GROW = 2.5`. Plain flange + back plate: 88.9 -> 93.9 mm square,
+  `FLANGE_HOLE_INSET` 10 -> 12.5 so the bolt pitch stays +-34.45.
+- Gate outer plate + gate body back plate (`_gn_plate2d`): 113 x 87 ->
+  118 x 92 mm; bolts stay at (+-48, +-32).
+- pytest 20/20 (watertight, gate collisions, print audit).
+
 ### Round 19 - ONE-piece gate body, even 45 deg taper, no clips (2026-10-08)
 Tyler didn't want the snap clips or the uneven collar + fins. Picked "one
 piece" over glue or long bolts.

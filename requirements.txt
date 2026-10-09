@@ -1,15 +1,8 @@
-# fittings (tube system) - all that's needed for src/fittings.py, the viewer and tests
+# shared tooling (printkit, serve.py, STL browser, tests, new projects)
 trimesh>=4.0
 manifold3d
-shapely
 numpy
-scipy
-rtree
-mapbox_earcut
+networkx
 pillow
 pytest
-# waterfall + its tooling
-cadquery>=2.8
-matplotlib
-# optional: headless viewer test (tests/browser_viewer.py)
-# playwright
+# each project may add its own: projects/<name>/requirements.txt

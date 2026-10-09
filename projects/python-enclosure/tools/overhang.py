@@ -8,7 +8,8 @@ is underneath it and multiply by the area.
 import numpy as np
 import trimesh
 
-from . import paths, render as R, solids
+from . import paths, solids
+from shared import render as R
 
 THRESHOLD_DEG = 45.0          # slicer overhang threshold
 SAMPLES = 4000                # ray-cast budget

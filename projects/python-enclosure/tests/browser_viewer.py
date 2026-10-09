@@ -71,5 +71,5 @@ async def main(page_path):
 
 
 if __name__ == "__main__":
-    page = sys.argv[1] if len(sys.argv) > 1 else ROOT / "out" / "fittings_viewer.html"
+    page = sys.argv[1] if len(sys.argv) > 1 else ROOT.parents[1] / "out" / ROOT.name / "fittings_viewer.html"
     sys.exit(asyncio.run(main(page)))

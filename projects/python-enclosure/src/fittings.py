@@ -1137,20 +1137,19 @@ def make_shim():
 #
 # GATE variant - the blade crosses the tube 25 mm up the neck, square to it.
 # Three prints:
-#   OUTER plate  outside the wall, a 1.5 mm lip centres it in the wall hole.
+#   OUTER plate  outside the wall, flat both faces (no centring lip).
 #   GATE BODY    one piece: back plate (inside the wall), an even 45 deg taper
 #                up to the gate block, the blade slot through the block (open
 #                at the far end, roof printed as a bridge), then tube + port.
 #   BLADE        slides in from the open end; a spring finger on each edge
 #                clicks into a notch open and closed.
 # 4 short M6 bolts clamp only the two plates and the wall (4 + wall + 4 + nut).
-FLANGE_W          = 3.5 * 25.4     # standard plate (88.9)
+FLANGE_W          = 94.0           # every flange plate (plain + gate) is 94 x 94
 FLANGE_T          = 4.0
-FLANGE_HOLE_INSET = 10.0
+FLANGE_BOLT       = 40.5           # bolt holes at (+-40.5, +-40.5) on every flange -> same wall holes
 FLANGE_HOLE_D     = 6.5            # M6
 FLANGE_TUBE_L     = 42.0
 FLANGE_WALL       = 3.0            # only the gap drawn in the viewer - nothing depends on it
-GN_LIP     = 1.5                   # centring lip on the outer plate (fits in the wall hole, any wall >= 1.5)
 BACK_HOLE_R       = SKIRT_RO + 1.0 + 0.7   # clears a female collar AND a male skirt + ribs
 
 GN_A       = BORE_R + 4.0          # blade half-width: 4 mm over the bore each side
@@ -1161,12 +1160,14 @@ GN_UP      = 25.0                  # blade centre above the inside wall face
 GN_W       = 38.5                  # gate block half-width (slot walls 4.4 thick)
 GN_Y0      = -37.6                 # frame near end (y)
 GN_Y1      = 52.0                  # frame far end: the channel opens here
-GN_BOLT    = (48.0, 32.0)          # wall bolts (+-x, +-y): clear of the frame for a socket wrench
-GN_BOSS_R  = 8.5
+GN_BOLT    = (FLANGE_BOLT, FLANGE_BOLT)   # wall bolts: heads outside, nuts inside under the skirt
 GN_PLATE_T = 4.0                   # outer plate, back plate, neck base
 GN_NECK_L  = 36.0                  # neck tube above its base, to the port mouth
 GN_TRAVEL  = np.ceil(2 * BORE_R + 1.0 + (GN_A - BORE_R)) + 0.5   # bottom edge clears the bore by 1 mm
 GN_DET_Y   = -21.0                 # spring bump (y) with the blade closed (open notch at +44.5)
+GN_ROUND   = (6.0, 3.0, 3.0)       # gate block: plan corner radius, top edge radius, fillet onto the plate
+GN_FOOT    = (20.0, 42.0, 5.0)     # skirt footprint around the tube: corner radius, +y end; ease (mm) into the walls
+GN_GRIP    = (6.0, 12.0)           # pull-tab grip bar: thickness (y), height above the blade, round top
 
 
 def _plate_box(w, y0, y1, z0, z1):
@@ -1190,7 +1191,7 @@ def make_flange(genders=None, labels=False):
     outer = [_plate_box(W, -W / 2, W / 2, 0, T),
              cylinder_between((0, 0, 0), (0, 0, total_h), OUTER_R)]
     holes = [cylinder_between((0, 0, -1), (0, 0, total_h + 1), BORE_R)]
-    holes += _bolt_holes(W / 2 - FLANGE_HOLE_INSET, -1, T + 1)
+    holes += _bolt_holes(FLANGE_BOLT, -1, T + 1)
     ports = [((0, 0, total_h), (0, 0, -1))]
     m = assemble(outer, holes, ports, g)
     return (m, port_labels(ports, g, PORT_NAMES['flange'])) if labels else m
@@ -1201,7 +1202,7 @@ def make_back_plate():
     W = FLANGE_W
     plate = _plate_box(W, -W / 2, W / 2, 0, FLANGE_T)
     holes = [cylinder_between((0, 0, -1), (0, 0, FLANGE_T + 1), BACK_HOLE_R)]
-    holes += _bolt_holes(W / 2 - FLANGE_HOLE_INSET, -1, FLANGE_T + 1)
+    holes += _bolt_holes(FLANGE_BOLT, -1, FLANGE_T + 1)
     return difference(plate, union(holes))
 
 
@@ -1212,11 +1213,10 @@ def _gn_bolt_pts():
 
 
 def _gn_plate2d():
-    """Outer plate / back plate outline: bolt ears, covers the bore."""
+    """Outer plate / back plate outline: FLANGE_W square, rounded corners."""
     import shapely.geometry as sg
-    bx, by = GN_BOLT
-    hy = max(by + GN_BOSS_R, OUTER_R + 8.6)
-    return sg.box(-bx - GN_BOSS_R, -hy, bx + GN_BOSS_R, hy).buffer(-4, join_style=1).buffer(4, join_style=1)
+    h = FLANGE_W / 2
+    return sg.box(-h, -h, h, h).buffer(-4, join_style=1).buffer(4, join_style=1)
 
 
 def _gn_holes2d():
@@ -1259,30 +1259,22 @@ def gn_levels():
 
 
 def gn_outer():
-    """Outer plate (outside the wall) + a short centring lip that sits in the
-    wall hole. Works for any wall thickness - only the bolts get longer."""
+    """Outer plate (outside the wall): flat both faces, bore + bolt holes.
+    Works for any wall thickness - only the bolts get longer."""
     d = gn_levels()
     plate = _gn_extrude(_gn_plate2d().difference(_gn_holes2d()), 0, d['plate1'])
-    stub = cylinder_between((0, 0, d['plate1'] - 0.3), (0, 0, d['plate1'] + GN_LIP), OUTER_R)
-    bore = cylinder_between((0, 0, -1), (0, 0, d['plate1'] + GN_LIP + 1), BORE_R)
-    return difference(union([plate, stub]), bore)
+    bore = cylinder_between((0, 0, -1), (0, 0, d['plate1'] + 1), BORE_R)
+    return difference(plate, bore)
 
 
 def gn_body(genders=None):
-    """Gate body, one print: back plate, even 45 deg taper, gate block with the
-    blade slot (open at the far end), click notches, tube + port."""
+    """Gate body, one print: back plate, rounded gate block on a smooth 45 deg
+    skirt, the blade slot (open at the far end), click notches, tube + port."""
     import shapely.geometry as sg
     d = gn_levels()
-    bp, zb = d['bp1'], d['zb']
+    bp = d['bp1']
     plate = _gn_extrude(_gn_plate2d().difference(_gn_holes2d()), d['wall1'], bp)
-    blk = sg.box(-GN_W, GN_Y0, GN_W, GN_Y1)
-    h = zb - bp
-    low = blk.buffer(-h, join_style=2)                       # even 45 deg on all four faces
-    taper = trimesh.util.concatenate([_gn_extrude(blk, zb - 0.01, zb + 0.3),
-                                      _gn_extrude(low, bp - 0.3, bp - 0.29)]).convex_hull
-    block = _gn_extrude(blk, zb, d['base1'])
-    tube_in = cylinder_between((0, 0, bp - 0.3), (0, 0, zb + 0.3), OUTER_R)
-    outer = [plate, taper, tube_in, block,
+    outer = [plate, _gn_housing(),
              cylinder_between((0, 0, d['base1'] - 0.3), (0, 0, d['mouth']), OUTER_R)]
     ac = GN_A + GN_CLR
     ch2d = sg.box(-ac, -GN_A - GN_CLR, ac, GN_Y1 + 5)
@@ -1293,6 +1285,63 @@ def gn_body(genders=None):
              cylinder_between((0, 0, d['wall1'] - 1), (0, 0, d['mouth'] + 1), BORE_R)]
     g = (genders or PORT_GENDER['flange']).upper()
     return assemble(outer, inner, gn_ports(), g)
+
+
+def _gn_housing():
+    """Gate block + the skirt it stands on, one smooth piece. The skirt is a
+    loft from a rounded footprint just around the tube (GN_FOOT) up to the
+    block's rounded outline: each layer is the Minkowski mix of the two, so
+    corners blend arc to arc (no facets, no creases). It eases into the
+    vertical walls just below the slot floor, and flares into the plate with
+    a GN_ROUND[2] concave fillet. Nowhere grows faster than 45 deg -> no
+    supports. Layers are convex; consecutive ones are hulled and unioned."""
+    import shapely.geometry as sg
+    d = gn_levels()
+    bp, top = d['bp1'], d['base1']
+    R, re, rf = GN_ROUND
+    R0, yf, L = GN_FOOT
+    blk = sg.box(-GN_W, GN_Y0, GN_W, GN_Y1).buffer(-R, join_style=1).buffer(R, join_style=1)
+    r = OUTER_R + 0.3
+    foot = sg.box(-r, -r, r, yf).buffer(-R0, join_style=1).buffer(R0, join_style=1)
+
+    def ring(poly, z):
+        c = np.asarray(poly.exterior.coords)[:-1]
+        return np.c_[c, np.full(len(c), z)]
+
+    def hull(*slices):
+        return trimesh.convex.convex_hull(np.vstack([ring(p, z) for p, z in slices]))
+
+    loft = hull((foot, 0.0), (blk, 1.0))                     # unit-height Minkowski mix
+
+    def mix(lam):
+        if lam <= 0.0:
+            return foot
+        if lam >= 1.0:
+            return blk
+        v = loft.section((0, 0, 1), (0, 0, lam)).vertices[:, :2]
+        return sg.MultiPoint(v).convex_hull
+
+    z1 = d['ch0'] - 0.1                                      # walls vertical from here up
+    H = z1 - bp
+    s = 1.0 / (H - L / 2)                                    # linear, then eased to slope 0
+
+    def lam(z):
+        u = z - bp
+        return s * u if u <= H - L else 1.0 - s * (H - u) ** 2 / (2 * L)
+
+    def fil(t):                                              # quarter-circle fillet offset
+        return rf - np.sqrt(max(t * (2 * rf - t), 0.0)) if t < rf else 0.0
+
+    zs = np.unique(np.r_[np.linspace(bp, bp + rf, 13), np.linspace(bp + rf, z1 - L, 12),
+                         np.linspace(z1 - L, z1, 8)])
+    sl = [(foot.buffer(rf, join_style=1), bp - 0.3)]
+    for z in zs:
+        p = mix(lam(z))
+        sl.append((p.buffer(fil(z - bp), join_style=1) if fil(z - bp) > 1e-6 else p, z))
+    cap = [(blk.buffer(-(re - np.sqrt(re * re - u * u)), join_style=1), top - re + u)
+           for u in np.linspace(0, re, 8)]                   # rounded top edge
+    sl += [(blk, top - re)] + cap[1:]
+    return union([hull(a, b) for a, b in zip(sl[:-1], sl[1:])])
 
 
 def gn_ports():
@@ -1306,7 +1355,7 @@ def _gn_blade_2d():
     import shapely.affinity as sa
     a = GN_A
     top = GN_Y1 + 3.0
-    tab = sg.box(-a, top - 1, a, top + 20).buffer(-4, join_style=1).buffer(4, join_style=1)
+    tab = sg.box(-a, top - 1, a, top + 24).buffer(-4, join_style=1).buffer(4, join_style=1)
     hole = sg.box(-16, top + 5, 16, top + 14).buffer(-4.4, join_style=1).buffer(4.4, join_style=1)
     body = sg.box(-a, -a, a, top).union(tab).difference(hole)
     fw, fl, fh = GATE_FINGER
@@ -1320,10 +1369,28 @@ def _gn_blade_2d():
     return body.buffer(0.3, join_style=1).buffer(-0.3, join_style=1)
 
 
+def _gn_grip(z1):
+    """Grip bar across the far end of the pull tab, standing up off the blade's
+    top face (round top - prints flat, no overhang). Hook a finger through the
+    slot and pull against it, or pinch it. Always outside the housing."""
+    import shapely.geometry as sg
+    from trimesh.creation import extrude_polygon
+    t, h = GN_GRIP
+    yc = GN_Y1 + 3.0 + 20.0                      # tab top + 20: past the finger slot
+    prof = sg.box(yc - t / 2, z1 - 0.3, yc + t / 2, z1 + h - t / 2).union(
+        sg.Point(yc, z1 + h - t / 2).buffer(t / 2, 32))          # (y, z) profile
+    L = 2 * GN_A - 12.0
+    m = extrude_polygon(prof, height=L)
+    # local (y, z, along) -> world (x, y, z): a rotation (det +1), centred in x
+    m.apply_transform(np.array([[0, 0, 1, -L / 2], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1.0]]))
+    return m
+
+
 def gn_blade(beta=1.0):
     """Blade in place: beta 0 = OPEN (pulled out GN_TRAVEL), 1 = CLOSED."""
     d = gn_levels()
-    m = _gn_extrude(_gn_blade_2d(), d['blade'] - GN_BLADE_T / 2, d['blade'] + GN_BLADE_T / 2)
+    z1 = d['blade'] + GN_BLADE_T / 2
+    m = union([_gn_extrude(_gn_blade_2d(), d['blade'] - GN_BLADE_T / 2, z1), _gn_grip(z1)])
     m.apply_translation((0, GN_TRAVEL * (1.0 - beta), 0))
     return m
 
@@ -1769,5 +1836,5 @@ def main(out_dir):
 
 
 if __name__ == '__main__':
-    out_dir = sys.argv[1] if len(sys.argv) > 1 else str(__import__('pathlib').Path(__file__).resolve().parents[1] / 'out' / 'stl')
+    out_dir = sys.argv[1] if len(sys.argv) > 1 else str(__import__('pathlib').Path(__file__).resolve().parents[3] / 'out' / 'python-enclosure' / 'stl')
     main(out_dir)

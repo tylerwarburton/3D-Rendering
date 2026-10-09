@@ -5,3 +5,5 @@ __pycache__/
 *.stl
 *.step
 !tests/fixtures/*.stl
+# STLs a project starts from / edits are source files - keep them
+!projects/*/source/*.stl

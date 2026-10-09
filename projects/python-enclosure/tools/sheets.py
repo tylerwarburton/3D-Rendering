@@ -2,7 +2,8 @@
 import numpy as np
 import trimesh
 
-from . import paths, render as R, solids
+from . import paths, solids
+from shared import render as R
 
 WF_VIEWS = [
     ("Front 3/4 (open face)", (0.85, 1.0, -0.55)),

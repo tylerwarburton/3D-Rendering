@@ -3,7 +3,8 @@ import numpy as np
 import trimesh
 from PIL import Image, ImageDraw, ImageFont
 
-from . import paths, render as R, solids, hydro
+from . import paths, solids, hydro
+from shared import render as R
 import waterfall as W
 
 AQUA = (70, 190, 178)
