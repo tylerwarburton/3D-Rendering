@@ -1,10 +1,10 @@
 # python-enclosure
 
 **Goal:** hardware for Tyler's ball python enclosure - a modular tube system
-the snake travels through, a tank-wall flange (optional knife gate), a
-waterfall and a hide.
-**Status:** tube fittings + flange ACTIVE; waterfall printed (final); snake
-hide final.
+the snake travels through and a tank-wall flange (optional knife gate).
+(The waterfall and the underground hide are their own projects:
+`projects/waterfall/`, `projects/snake-hide/`.)
+**Status:** tube fittings + flange ACTIVE.
 
 Repo-wide printer settings and print rules are in the root `CLAUDE.md`.
 Run commands from this folder; outputs land in `<repo>/out/python-enclosure/`.
@@ -24,11 +24,10 @@ Run commands from this folder; outputs land in `<repo>/out/python-enclosure/`.
 pip install --break-system-packages trimesh manifold3d shapely numpy scipy rtree mapbox_earcut pillow pytest
 pytest -q                          # geometry checks, ~20 s - run after every change
 python build.py fittings           # STLs + fittings_viewer.html + site/ in out/python-enclosure/ (~5 min)
+python build.py cover              # cover.stl - the home-page card picture (tee fitting)
 python tests/browser_viewer.py     # headless check of the built viewer (needs playwright)
 python ../../serve.py              # local viewers at http://localhost:8000 (configurator + STL browser)
 ```
-
-Waterfall tooling (`python build.py`, default steps) also needs `cadquery`.
 
 ## Where things are
 
@@ -39,7 +38,7 @@ Waterfall tooling (`python build.py`, default steps) also needs `cadquery`.
 - `tools/fittings_viewer.py` + `tools/viewer_template.html` - the viewer.
   One build writes the single-file `fittings_viewer.html` (must stay
   < ~31 MB) and `site/` (index.html + `data/chunk_N.json`, each <= 9 MB).
-- Shared (repo root): `serve.py`, `shared/stl_browser.html`, `shared/render.py`.
+- Shared (repo root): `serve.py` (`/p/python-enclosure` opens `site/`), `shared/render.py`.
 - `tools/latch_check.py` - latch simulation, male-port check, print audit.
 - `docs/DESIGN_LOG.md` - every design round, why it changed, what was checked.
   **Add a round there for each design change.**
@@ -54,6 +53,8 @@ needs the `downloads` capability (carried forward automatically).
 
 ## Project rules
 
+- Latch: 9 entry slots per socket, 3 lugs per male end, 20 deg twist ->
+  joints go together at 9 angles, 40 deg apart (Tyler 2026-10-11).
 - Export through `fittings.export_ready()`; the viewer packs exact geometry.
 - Gate flange: bolt heads outside the tank, washer + nut on the flat back
   plate under the skirt (no recesses). Skirt must stay clear of a 12 mm washer.

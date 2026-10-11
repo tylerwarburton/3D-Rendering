@@ -1,0 +1,7 @@
+{
+  "cover_view": [1, 1.3, -0.9],
+  "note": "Shown buried in its dirt hill behind the glass. Change sizes by asking in the chat.",
+  "options": [
+    {"id": "hill", "label": "Hill (substrate rises 2 in toward the corner)", "default": true, "on": [], "off": ["--hill", "0"]}
+  ]
+}

@@ -1,4 +1,4 @@
-"""Static PNG review sheets: overall views, sections, details, cutaways."""
+"""Static PNG review sheets: overall views, sections, details."""
 import numpy as np
 import trimesh
 
@@ -13,21 +13,6 @@ WF_VIEWS = [
     ("Back 3/4", (-0.85, -1.0, -0.5)),
     ("Front 3/4 low angle", (0.6, 1.0, -0.12)),
 ]
-
-FITTING_VIEWS = {
-    "coupler": (0.9, 1.0, -0.35),
-    "elbow_90": (0.25, 1.0, -0.25),
-    "u_bend": (0.25, 1.0, -0.25),
-    "tee": (0.3, 1.0, -0.25),
-    "y_fitting": (0.3, 1.0, -0.25),
-    "cap": (0.8, 1.0, -0.5),
-    "flange": (0.8, 1.0, -0.5),
-    "back_plate": (0.7, 1.0, -0.6),
-    "pipe_hook": (0.9, 0.75, -0.5),
-}
-FITTING_ORDER = ["coupler", "elbow_90", "u_bend", "tee", "y_fitting",
-                 "cap", "flange", "back_plate", "pipe_hook"]
-
 
 def waterfall_sheets(size=620):
     import waterfall as W
@@ -67,36 +52,6 @@ def waterfall_sheets(size=620):
     print(f"  waterfall_views / _sections / _detail -> {paths.rel(paths.IMG)}")
 
 
-def fitting_sheets(size=560):
-    imgs, labs = [], []
-    for name in FITTING_ORDER:
-        m = solids.load(name)
-        e = m.extents
-        imgs.append(R.render(m, view_dir=FITTING_VIEWS[name], size=(size, size), ss=2))
-        labs.append(f"{name}   {e[0]:.0f} x {e[1]:.0f} x {e[2]:.0f} mm")
-    R.grid(imgs, labs, 3, str(paths.IMG / "fittings_views.png"))
-
-    imgs, labs = [], []
-    for name in ["coupler", "elbow_90", "u_bend", "tee", "y_fitting", "flange"]:
-        m = solids.load(name)
-        try:
-            h = m.slice_plane(plane_origin=[0, 0, 0], plane_normal=[0, 1, 0], cap=True)
-            if h is None or len(h.faces) == 0:
-                raise ValueError("empty slice")
-        except Exception as e:                       # fall back to a boolean cut
-            print(f"    {name}: slice failed ({e}); using boolean")
-            lo, hi = m.bounds
-            box = trimesh.creation.box(extents=(hi - lo) + 400)
-            box.apply_translation(((lo + hi) / 2) + [0, (max(hi - lo) + 400) / 2, 0])
-            h = m.difference(box, engine="manifold")
-        imgs.append(R.render(h, view_dir=(0.15, 1.0, -0.2), size=(size, size),
-                             bounds=m.vertices, ss=2))
-        labs.append(f"{name} - cutaway (socket + bore)")
-    R.grid(imgs, labs, 3, str(paths.IMG / "fittings_cutaways.png"))
-    print(f"  fittings_views / _cutaways -> {paths.rel(paths.IMG)}")
-
-
 def run():
     print("sheets:")
     waterfall_sheets()
-    fitting_sheets()

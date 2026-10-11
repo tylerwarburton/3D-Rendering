@@ -10,15 +10,19 @@ add a round to its `docs/DESIGN_LOG.md` for every design change.
 
 ## Projects
 
-- `projects/python-enclosure/` - ball python enclosure: tube fittings
-  (active), waterfall (printed), snake hide.
+- `projects/python-enclosure/` - ball python enclosure: tube fittings + tank flange (active).
+- `projects/waterfall/` - three-tier enclosure waterfall (CadQuery), printed (final).
+- `projects/snake-hide/` - L-shaped underground snake hide (torii corridor), final.
+- `projects/miata-intake/` - 1990 NA Miata turn-signal duct -> 2.5 in intake adapter (CadQuery).
+- `projects/screen-protector/` - Case that closes over a ~7 in screen + its cables; make it structurally sound and bolt-together
 
 ## Commands (repo root)
 
 ```bash
 python new_project.py <name> "<goal>" [--from file.stl ...]   # start a project (from scratch or from STLs)
 python build.py <project> [parts/steps]                         # build -> out/<project>/
-python serve.py                                                 # http://localhost:8000 - every project + STL browser
+python presets.py <project>                                     # pre-build every configurator preset
+python serve.py                                                 # http://localhost:8000 - a configurator per project
 pytest -q                                                       # every project's tests
 ```
 
@@ -33,6 +37,17 @@ pytest -q                                                       # every project'
   cylinder, move/rotate/scale, union/difference/intersection (manifold3d),
   on_bed, export (proves watertight), overhang_area, report.
 - `templates/project/` is what new projects are copied from.
+- **No STLs in the repo** - only generators (the one exception: a project's
+  `source/` STL it modifies). Outputs go to git-ignored `out/`.
+- Every project's UI is its **configurator**: on/off presets in
+  `configurator.json` (`{"id", "label", "default", "on": [build.py args],
+  "off": [args]}`), every combination pre-built by `python presets.py
+  <project>` into `out/<project>/presets/` - the page only switches, never
+  builds. Presets are features like the enclosure's female/male or the
+  hide's hill - never dimension sliders (a build may also write `scene.json` -
+  dirt/glass/an animated snake drawn around the part, see snake-hide): Tyler changes sizes by asking in the
+  chat, and measured specs stay fixed. **Re-run `presets.py` after any
+  generator change.**
 
 ## Printer + print rules (all projects unless a project says otherwise)
 
@@ -57,10 +72,11 @@ pytest -q                                                       # every project'
 
 ## Shared tooling
 
-- `serve.py` - serves `out/`; home lists every `out/<project>/` (its
-  `site/` configurator, viewers, STLs) + the STL browser.
-- `shared/stl_browser.html` - any STL (listed or dropped): size, bed fit,
-  volume, grams, >45 deg overhangs.
+- `serve.py` - home = a card per project (picture: `out/<p>/cover.stl` if the
+  build writes one, else the biggest part of the default preset; optional
+  `"cover_view": [x, y, z]` look direction in configurator.json); `/p/<project>` = its configurator.
+- `shared/configurator.html` - options -> Generate -> 3D view (size, bed fit,
+  grams, >45 deg overhangs, views, section, ruler) + STL/OBJ download.
 - `shared/render.py` - numpy z-buffer renderer for PNG review sheets.
 - Outputs (`out/`) and STLs are git-ignored, except `projects/*/source/*.stl`.
 

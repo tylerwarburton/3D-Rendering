@@ -1,0 +1,5 @@
+{
+  "note": "Fixed design - every size is a measured spec in CLAUDE.md. Car shows it in a rough mockup of the car.",
+  "targets": ["part", "coupon", "mock"],
+  "options": []
+}

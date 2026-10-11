@@ -70,8 +70,11 @@ SEG_TORUS_MINOR = 64
 # the fitting along the socket axis.
 # ---------------------------------------------------------------------------
 LATCH_ENABLE   = True
-LATCH_COUNT    = 3         # lugs / slots per port
-LATCH_ROT_DEG  = 30.0      # twist from entry to locked
+LATCH_COUNT    = 3         # lugs per male end
+SLOT_COUNT     = 9         # entry slots per socket (a multiple of LATCH_COUNT):
+                           # the male end can go on at 9 angles, 40 deg apart
+LATCH_ROT_DEG  = 20.0      # twist from entry to locked (was 30; with 9 slots a
+                           # 30 deg run would end inside the next entry channel)
 COLLAR_T       = 2.2       # radial thickness of the collar over OUTER_R
 SLOT_DEPTH     = 1.6       # slot depth into the collar (collar keeps 0.6 mm)
 LATCH_Z        = 5.0       # mouth face -> lug bearing face (the locking ledge)
@@ -285,6 +288,7 @@ def collar_local():
 def slot_cutter_local(R=COLLAR_R, count=None):
     """Everything cut from a collar of radius R: entry channels, runs, minus
     detents. R defaults to the fitting collar; rooms pass their own."""
+    count = count or SLOT_COUNT
     floor = R - SLOT_DEPTH
     hw = _arc(LUG_W / 2 + SLOT_CIRC_CL, R)      # half-width of the channel
     rot = np.radians(LATCH_ROT_DEG)

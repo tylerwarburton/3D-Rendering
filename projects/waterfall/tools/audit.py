@@ -1,9 +1,8 @@
-"""Writes out/report.txt: geometry audit + hydraulics for both assemblies."""
+"""Writes out/waterfall/report.txt: geometry audit + hydraulics."""
 import numpy as np
 
 from . import paths, hydro
 import waterfall as W
-import fittings as F
 
 IN = 25.4
 
@@ -85,21 +84,6 @@ def report():
     p( "  y=98.8..104.8 mm. The back wall prints full width.")
     p("")
 
-    p("=" * 76)
-    p("FITTINGS")
-    p("=" * 76)
-    p(f"  pipe {F.PIPE_OD:.2f} OD / {F.PIPE_ID:.2f} ID")
-    p(f"  socket {F.SOCKET_ID:.2f} ID ({F.PRINT_CLEARANCE:.2f} mm diametric clearance), "
-      f"{F.SOCKET_DEPTH:.0f} mm deep")
-    p(f"  bore {F.BORE_ID:.2f} ID -> step to pipe ID = "
-      f"{abs(F.PIPE_ID-F.BORE_ID):.2f} mm when a pipe is fitted")
-    p(f"  UNOCCUPIED socket leaves a {(F.SOCKET_ID-F.BORE_ID)/2:.2f} mm internal ledge")
-    p(f"  outer {F.TUBE_OD:.2f} OD, wall {F.WALL:.1f} mm")
-    p(f"  bend radius {F.BEND_R:.0f} mm centreline = {F.BEND_R/F.PIPE_OD:.2f} x pipe OD")
-    p(f"  tee / wye legs {F.SOCKET_DEPTH + F.PIPE_OD/2 + F.JUNCTION_CLEARANCE:.2f} mm; "
-      f"pipe tips stop {F.PIPE_OD/2 + F.JUNCTION_CLEARANCE:.1f} mm short of the centreline")
-    p(f"  hook cradle ID {F.PIPE_OD:.1f} mm = pipe OD exactly (zero clearance)")
-    p("")
     return "\n".join(L)
 
 

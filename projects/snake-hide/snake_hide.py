@@ -101,7 +101,7 @@ FAR = 1.0           # field is clamped to this far from any surface, inches
 @dataclass
 class Params:
     # --- overall ---------------------------------------------------------
-    leg_long: float = 8.00      # south leg, along the front glass
+    leg_long: float = 7.00      # south leg, along the front glass (8 was 256 mm long - too big for the bed)
     leg_short: float = 5.50     # north leg, along the right glass
     tunnel_w: float = 1.70      # inner tunnel width
     tunnel_h: float = 1.15      # inner tunnel height
@@ -897,6 +897,49 @@ def write_preview(path, verts, tris, title, views=None):
     print("  wrote %s" % path)
 
 
+def write_scene(path, p, s, z_hatch):
+    """What the configurator draws around the hide (file coordinates, same units
+    as the STL): the dirt hill it is buried in, the two glass panes, and a path
+    for a snake that comes down the stairs, along the tomb and out of the hatch."""
+    import json
+    k = (MM_PER_IN if p.units == "mm" else 1.0) * p.scale
+    sx = -1.0 if p.mirror else 1.0
+    t, W, r = p.wall, p.tunnel_w, 0.30            # snake body radius (in)
+    prof = [(0.0, p.substrate + p.hill), (p.leg_long, p.substrate),
+            (p.stair_end + 3.5, p.substrate)]
+    ground = lambda x: float(np.interp(x, [q[0] for q in prof], [q[1] for q in prof]))
+    yc = (t + W) / 2.0                            # middle of the passage
+    ay1 = p.leg_short - t
+    cyh = ay1 - p.shaft_len / 2.0                 # shaft centre
+    z0 = p.floor_t + r
+    z_out = p.substrate + p.hill + p.hatch_rim + 0.65   # out between the lantern posts
+    xe, L = p.stair_end, 10.0                     # snake length (in)
+    pts = [(xe + 0.6, p.leg_short + 1.5), (xe + 2.8, 4.2), (xe + 2.4, 1.6), (xe + 1.2, yc)]
+    pts = [(x, y, ground(x) + r) for x, y in pts] + [   # across the dirt to the stairs
+           (xe + 0.3, yc, s["z_top"] + r)]
+    # down the flight riding on the step edges (a straight chord would cut them)
+    lift = r * math.hypot(1.0, s["slope"]) + 0.06     # clear of the edges, measured square to the slope
+    pts += [(p.leg_long + j * s["tread"], yc, p.floor_t + j * s["rise"] + lift) for j in range(s["n"] - 1, 0, -1)]
+    pts += [(p.leg_long - 0.4, yc, z0), (yc + 0.5, yc, z0), (yc, yc, z0), (yc, yc + 0.5, z0),   # tight turn: a wide
+            (yc, cyh, z0),                                                                   # one hits the inner wall
+           (yc, cyh, z_out - 0.4), (yc + 0.9, cyh, z_out),
+           (yc + 1.3, cyh, p.substrate + p.hill + p.hatch_rim + 0.28 + r),   # over the curb
+           (yc + 2.4, cyh - 0.6, ground(yc + 2.4) + r),
+           (yc + 4.0, cyh - 2.6, ground(yc + 4.0) + r), (yc + 5.5, cyh - 3.0, ground(yc + 5.5) + r)]
+    for _ in range(4):                            # Chaikin: round the corners
+        P = np.array(pts)
+        pts = [P[0]] + [q for a, b in zip(P[:-1], P[1:]) for q in (0.75 * a + 0.25 * b, 0.25 * a + 0.75 * b)] + [P[-1]]
+    pts = np.array(pts)
+    scene = dict(
+        dirt=dict(profile=[[sx * x * k, z * k] for x, z in prof],
+                  y=[0.0, (p.leg_short + 2.0) * k]),
+        glass=dict(x=0.0, y=0.0, top=(max(z_hatch, s["ceil_end"]) + 1.0) * k),
+        snake=dict(path=[[round(sx * x * k, 2), round(y * k, 2), round(z * k, 2)] for x, y, z in pts],
+                   radius=r * k, length=L * k, wiggle=0.25 * k, wave=2.2 * k))
+    with open(path, "w") as fh:
+        json.dump(scene, fh)
+
+
 # ----------------------------------------------------------------------------
 # self-contained browser viewer
 # ----------------------------------------------------------------------------
@@ -1312,6 +1355,8 @@ def main():
     ap.add_argument("--tunnel-h", type=float, default=d.tunnel_h)
     ap.add_argument("--wall", type=float, default=d.wall)
     ap.add_argument("--substrate", type=float, default=d.substrate)
+    ap.add_argument("--hill", type=float, default=d.hill,
+                    help="extra substrate depth at the corner/hatch end; 0 = flat")
     ap.add_argument("--round", type=float, default=d.round_r,
                     dest="round_r", help="radius on convex arrises")
     ap.add_argument("--round-in", type=float, default=d.round_in,
@@ -1347,6 +1392,8 @@ def main():
     ap.add_argument("--ascii-stl", action="store_true")
     ap.add_argument("--preview", metavar="PNG", default=None,
                     help="also write a static PNG contact sheet")
+    ap.add_argument("--scene", metavar="JSON", default=None,
+                    help="write the configurator's scene: dirt hill, glass, snake path")
     ap.add_argument("--no-viewer", action="store_true",
                     help="skip the interactive HTML viewer")
     ap.add_argument("--viewer-res", type=float, default=0.045,
@@ -1355,7 +1402,7 @@ def main():
     a = ap.parse_args()
 
     p = Params(leg_long=a.leg_long, leg_short=a.leg_short, tunnel_w=a.tunnel_w,
-               tunnel_h=a.tunnel_h, wall=a.wall, substrate=a.substrate,
+               tunnel_h=a.tunnel_h, wall=a.wall, substrate=a.substrate, hill=a.hill,
                round_r=a.round_r, round_in=a.round_in, blend=a.blend,
                res=a.res, stair_run=a.stair_run, stair_tread=a.stair_tread,
                pass_head=a.pass_head,
@@ -1374,6 +1421,8 @@ def main():
     ok, msg = check_manifold(tris)
     vol_in3 = float((f.d <= 0).sum()) * p.res ** 3
     verts = transform(verts_in, p)
+    if p.mirror:                   # mirroring x flips the winding: reverse it or the STL is inside-out
+        tris = tris[:, ::-1]
 
     obj_path, stl_path = a.out + ".obj", a.out + ".stl"
     write_obj(obj_path, verts, tris, "snake_hide")
@@ -1470,6 +1519,9 @@ def main():
                                thick=0.045)))))
         print("  wrote %s  (%.1f MB, %d tris, opens offline)"
               % (html, n / 1e6, len(vt)))
+    if a.scene:
+        write_scene(a.scene, p, s, z_hatch)
+        print("  wrote %s" % a.scene)
     if a.preview:
         write_preview(a.preview, verts, tris, "snake hide  (%s)" % p.units)
     print()

@@ -9,8 +9,5 @@ networkx
 mapbox_earcut
 pillow
 pytest
-# waterfall + its tooling
-cadquery>=2.8
-matplotlib
 # optional: headless viewer test (tests/browser_viewer.py)
 # playwright

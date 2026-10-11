@@ -12,7 +12,7 @@ import __SLUG__ as M                 # noqa: E402
 
 
 def main(argv):
-    want = argv[1:] or list(M.PARTS)
+    want = pk.apply_sets(argv[1:], M) or list(M.PARTS)   # --set NAME=VALUE: configurator options
     bad = [w for w in want if w not in M.PARTS]
     if bad:
         print("unknown part(s): " + ", ".join(bad) + "\nparts: " + ", ".join(M.PARTS))

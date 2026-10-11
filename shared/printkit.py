@@ -22,10 +22,30 @@ PLA = 1.24                      # g/cm3
 
 
 def out_dir(project):
-    """out/<project>/stl/, created. serve.py shows everything under out/."""
-    d = ROOT / "out" / project / "stl"
+    """out/<project>/stl/, created - or $OUT_DIR when the configurator
+    (serve.py) runs the build with options."""
+    import os
+    d = Path(os.environ["OUT_DIR"]) if os.environ.get("OUT_DIR") else ROOT / "out" / project / "stl"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def apply_sets(argv, module):
+    """Take `--set NAME=VALUE` pairs out of argv and set those constants on
+    the parts module (the configurator's options). Returns the other args."""
+    import json
+    rest, i = [], 0
+    while i < len(argv):
+        if argv[i] == "--set":
+            k, v = argv[i + 1].split("=", 1)
+            if not hasattr(module, k):
+                raise SystemExit(f"--set: {module.__name__} has no constant {k}")
+            setattr(module, k, json.loads(v))
+            i += 2
+        else:
+            rest.append(argv[i])
+            i += 1
+    return rest
 
 
 # ---------------------------------------------------------------- load + edit
@@ -78,7 +98,9 @@ def difference(m, *cutters):
 
 
 def intersection(*meshes):
-    return _check(trimesh.boolean.intersection(list(meshes), engine="manifold"))
+    """Overlap of the meshes; volume 0 if they only touch or don't meet."""
+    m = trimesh.boolean.intersection(list(meshes), engine="manifold")
+    return m if len(m.faces) == 0 or abs(m.volume) < 1e-6 else _check(m)   # touching = 0
 
 
 def _check(m):

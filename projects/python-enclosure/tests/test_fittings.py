@@ -78,10 +78,12 @@ def test_gate_body_prints_without_supports(F):
     over, islands = L.run_print_audit(e, label="gate body")
     assert not islands
     # the only flat overhang allowed is the slot roof bridge + female collar
+    # (each latch run's roof: a SLOT_DEPTH-deep ledge, one per slot)
     n, c, A = e.face_normals, e.triangles_center, e.area_faces
     z_roof = F.gn_levels()["top"] - F.gn_levels()["wall1"]
     flat = (n[:, 2] < -0.75) & (c[:, 2] > 0.5) & (np.abs(c[:, 2] - z_roof) > 0.5)
-    assert A[flat].sum() < 150, A[flat].sum()
+    runs = F.SLOT_COUNT * np.radians(F.LATCH_ROT_DEG) * F.COLLAR_R * F.SLOT_DEPTH
+    assert A[flat].sum() < runs + 50, A[flat].sum()
 
 
 @pytest.mark.parametrize("piece", ["outer", "blade"])

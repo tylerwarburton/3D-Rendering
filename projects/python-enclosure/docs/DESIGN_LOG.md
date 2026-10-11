@@ -5,11 +5,9 @@ Design history and decisions, newest round first. The code is in this repo;
 The `src/archive_rooms_iris.py` file keeps the removed room pods + iris gate.
 
 ```
-build.py                    waterfall pipeline (stl sheets water spill audit viewer
-                            + concept overhang coverage testprint)
+build.py                    fittings build (STLs + viewer)
 src/
   fittings.py               2.5 in acrylic "hamster tube" fittings, trimesh+manifold
-  waterfall.py              3-tier waterfall, CadQuery (FINAL, as printed)
   snake_hide.py             L-shaped underground snake hide, SDF + surface nets
 tools/
   render.py                 orthographic z-buffer renderer (numpy) + cutaway()
@@ -17,9 +15,7 @@ tools/
                             /*DATA*/ gets replaced with packed meshes
   fittings_viewer.py        python -m tools.fittings_viewer -> STLs + out/fittings_viewer.html
   latch_check.py            simulates cap push-on / twist / lock / pull-off
-  paths.py, solids.py, sheets.py, viewer.py, hydro.py, water_diagram.py,
-  spill_map.py, audit.py, concept.py, overhang.py, coverage.py,
-  support_test.py           waterfall tooling (needs cadquery)
+  paths.py                  every path; outputs -> <repo>/out/python-enclosure/
 ```
 
 ## Parts
@@ -63,15 +59,10 @@ body (`drop_slivers` raises otherwise).
 Open items: empty-socket ledge 2.15 mm; pipe_hook cradle zero clearance;
 70 mm bend radius tight for a ball python.
 
-### Waterfall — `src/waterfall.py` (FINAL, printed)
-Three-tier open-front waterfall, 8.25 in cube, pump in the back column.
-`DRIP_MODE="column"`, U flow channels (`CHANNEL_FRAC` 0.75), back holes
-3.25 / 6.25 in, wall-rib breakaway supports 0.10 mm Z-gap snapped to 0.2 mm
-layers, `RIM_EDGE_STYLE="none"`. ~1480 cm3, 38 ribs, 3049 mm line contact.
-Verified byte-identical to Tyler's file (2026-09-26).
-History: chat "Ball python enclosure water system design" (2026-08).
+### Waterfall — moved to `projects/waterfall/` (2026-10-10; FINAL, printed)
+Its source, tools, notes and history live there now.
 
-### Snake hide — `src/snake_hide.py` (FINAL)
+### Snake hide — moved to `projects/snake-hide/` (2026-10-10; FINAL)
 L-shaped underground hide for small snakes, glass forms two walls. SDF +
 naive surface nets, self-verifies watertight + sealed interior. Ramen-shop
 stair entrance, stone-lantern escape hatch, torii corridor, masonry detail.
@@ -254,6 +245,18 @@ its blade (first try had a loose push-in blade; he wanted a real knife gate).
 - Viewer: anim kind 'slide' (mover = blade, vec = travel); `dl=[0]` makes
   Download STL give the body only (blade is gate_blade.stl). Mid-travel the
   check shows ~1.6 mm3 overlap = the bump on the wall (intended interference).
+
+### Round 28 - 9 latch angles instead of 3 (2026-10-11)
+Tyler: joints only go together at 3 angles; want ~9.
+- Female sockets now have `SLOT_COUNT` = 9 entry slots (every 40 deg); male
+  ends/caps keep `LATCH_COUNT` = 3 lugs, so a male end goes on at 9 angles.
+- `LATCH_ROT_DEG` 30 -> 20: a 30 deg run would end inside the next slot's
+  entry (no ledge left to hold the lug). At 20 the locked lug sits fully on
+  the ledge with a 6.5 deg (4.3 mm) wall before the next entry. Detent unchanged.
+- latch_check at all 9 entries: push-on 0 mm3, locked 0, pulled-locked 22.1
+  (same as before); shim + every male port OK.
+- Gate body test: flat-overhang budget now derives from slot count (9 run
+  roofs, each a 1.6 mm ledge: 175 mm2 vs 88 before). pytest 20/20.
 
 ### Round 27 - no nut recess (washer goes there) (2026-10-09)
 - Hex recesses removed (`GN_NUT` gone): back plate is flat with plain holes;

@@ -235,7 +235,7 @@ def run(mode='site'):
     out.mkdir(parents=True, exist_ok=True)
     meta = {'Socket': f"{F.SOCKET_ID:.2f} ID x {F.SOCKET_DEPTH:.0f} deep",
             'Bore': f"{F.BORE_ID:.2f} mm",
-            'Latch': f"{F.LATCH_COUNT} lugs, {F.LATCH_ROT_DEG:.0f} deg twist, detent",
+            'Latch': f"{F.LATCH_COUNT} lugs, {F.SLOT_COUNT} slots ({F.SLOT_COUNT} angles), {F.LATCH_ROT_DEG:.0f} deg twist, detent",
             'Ports': "F = socket + collar, M = built-in male end"}
     parts, built, defaults = {}, {}, {}
 

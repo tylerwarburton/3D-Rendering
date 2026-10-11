@@ -14,9 +14,11 @@ python serve.py                    # http://localhost:8000
 pytest -q                          # every project: watertight, fits bed, no supports
 ```
 
-`serve.py` lists every project's outputs and has an **STL browser**: any
-STL under `out/` or dragged in - size, bed fit (256 / 180 mm), volume,
-~grams PLA, >45 deg overhangs in red.
+`serve.py` opens every project in a **configurator**: on/off presets
+(`configurator.json`, pre-built by `python presets.py <project>`), 3D view
+(bed fit, ~grams PLA, >45 deg overhangs in red, section, ruler) and STL/OBJ
+download. Sizes are changed by asking the project chat. The repo
+holds generators only - no STLs except a project's `source/` inputs.
 
 ## Layout
 
@@ -26,11 +28,15 @@ build.py              runs projects/<name>/build.py
 serve.py              local server for out/
 shared/
   printkit.py         load / edit / export STLs, print checks
-  stl_browser.html    the STL browser
+  configurator.html   the per-project configurator page
   render.py           numpy renderer for PNG sheets
 templates/project/    CLAUDE.md (goal, dimensions, rules), design log, parts, tests
 projects/
-  python-enclosure/   ball python enclosure: tube fittings, waterfall, hide
+  python-enclosure/   ball python enclosure: tube fittings, tank flange
+  waterfall/          three-tier enclosure waterfall (printed)
+  snake-hide/         underground snake hide
+  miata-intake/       Miata duct -> 2.5 in intake adapter
+  screen-protector/   bolt-together case for a 7 in screen
 out/<project>/        generated (git-ignored)
 ```
 
@@ -42,6 +48,7 @@ projects/<name>/
   docs/DESIGN_LOG.md  every design change: why, and how it was checked
   <name>.py           PARTS = {name: function -> mesh in print orientation}
   source/             STLs it starts from (tracked in git; each is a part)
-  build.py            python build.py <name> [part ...]
+  build.py            python build.py <name> [part ...] [--set NAME=VALUE]
+  configurator.json   the on/off presets the configurator shows
   tests/              watertight, fits bed, overhang <= 45 deg
 ```

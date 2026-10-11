@@ -7,6 +7,7 @@ import cadquery as cq
 import trimesh
 
 from . import paths
+from shared import printkit as pk
 
 TOL = dict(tolerance=0.05, angularTolerance=0.1)
 TOL_FAST = dict(tolerance=0.12, angularTolerance=0.35)
@@ -73,17 +74,22 @@ def mesh_health(path, label=""):
     return n
 
 
-def build_waterfall(fast=False):
+def build_waterfall(fast=False, sections=True):
+    """waterfall.stl -> paths.PRINT (the printable part); STEP + section
+    meshes (review only) -> paths.STL, skipped when sections=False."""
     tol = TOL_FAST if fast else TOL
     solid = waterfall_solid()
 
     out = {}
-    p = paths.STL / "waterfall.stl"
+    p = paths.PRINT / "waterfall.stl"
     cq.exporters.export(solid, str(p), **tol)
-    cq.exporters.export(solid, str(paths.STL / "waterfall.step"))
+    pk.export(pk.load(p), p)        # weld the tessellation, prove watertight
     out["waterfall"] = p
+    if not sections:
+        _report(solid, p)
+        return out
+    cq.exporters.export(solid, str(paths.STL / "waterfall.step"))
 
-    import waterfall as W
     p = paths.STL / "waterfall_section_x.stl"
     cq.exporters.export(section(solid, "x", "neg"), str(p), **tol)
     out["section_x"] = p
@@ -93,41 +99,24 @@ def build_waterfall(fast=False):
     cq.exporters.export(section(solid, "y", "neg", at=bb.ymin + bb.ylen * 0.55),
                         str(p), **tol)
     out["section_y"] = p
+    _report(solid, out["waterfall"])
+    return out
 
+
+def _report(solid, stl):
     bb = solid.val().BoundingBox()
     print(f"  waterfall  {bb.xlen:.1f} x {bb.ylen:.1f} x {bb.zlen:.1f} mm  "
           f"{solid.val().Volume()/1000:.0f} cm3  "
           f"solid_valid={solid.val().isValid()}")
-    mesh_health(out["waterfall"], "waterfall.stl")
-    return out
+    mesh_health(stl, "waterfall.stl")
 
 
-def build_fittings(seg=None):
-    """seg: optional (cyl, torus_major, torus_minor) override for preview meshes."""
-    import fittings as F
-    if seg:
-        F.SEG_CYL, F.SEG_TORUS_MAJOR, F.SEG_TORUS_MINOR = seg
-
-    out = {}
-    for name, factory in F.FITTINGS.items():
-        mesh = factory()
-        mesh.apply_translation((0, 0, -mesh.bounds[0][2]))   # sit on the bed
-        p = paths.STL / f"{name}.stl"
-        mesh.export(str(p))
-        out[name] = p
-        e = mesh.extents
-        print(f"  {name:<12} {e[0]:5.1f} x {e[1]:5.1f} x {e[2]:5.1f} mm  "
-              f"{mesh.volume/1000:5.1f} cm3  watertight={mesh.is_watertight}")
-    return out
-
-
-def run(fast=False):
+def run(fast=False, sections=True):
     print("waterfall:")
-    build_waterfall(fast=fast)
-    print("fittings:")
-    build_fittings()
-    print(f"-> {paths.rel(paths.STL)}")
+    build_waterfall(fast=fast, sections=sections)
+    print(f"-> {paths.rel(paths.PRINT)}")
 
 
 def load(name):
-    return trimesh.load(str(paths.STL / f"{name}.stl"))
+    d = paths.PRINT if name == "waterfall" else paths.STL
+    return trimesh.load(str(d / f"{name}.stl"))

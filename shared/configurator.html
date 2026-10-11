@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configurator</title>
+<style>
+:root{--bg:#0f1d25;--panel:#152731;--item:#1b3340;--hi:#2a5468;--fg:#dfe9ee;--dim:#8fa6b1;--bad:#ff6b5b;--ok:#6fd08c}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
+#app{display:flex;height:100%}
+#side{width:320px;min-width:220px;background:var(--panel);display:flex;flex-direction:column}
+#side header{padding:12px}
+#side h1{font-size:16px;margin:0 0 8px}
+input,select,button{font:inherit;color:var(--fg);background:var(--item);border:1px solid #2c4a58;border-radius:6px;padding:6px 8px}
+#side .scroll{overflow:auto;flex:1;padding:0 12px 16px}
+.grp{color:var(--dim);font-size:12px;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.opt{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 8px;font-size:13px}
+.opt .chips{display:flex;flex-shrink:0} .opt button{padding:3px 10px;font-size:12px;border-radius:0}
+.opt button:first-child{border-radius:6px 0 0 6px} .opt button:last-child{border-radius:0 6px 6px 0}
+.opt button.on{background:#2a8a7e;border-color:#2a8a7e}
+.part{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer}
+.part:hover{background:var(--item)} .part.on{background:var(--hi)} .part span{flex:1;overflow:hidden;text-overflow:ellipsis}
+.part a{color:var(--fg);background:#24414e;border-radius:5px;padding:2px 7px;font-size:12px;text-decoration:none}
+#log{white-space:pre-wrap;font-size:11px;color:var(--dim);max-height:240px;overflow:auto}
+#main{flex:1;position:relative;min-width:0}
+canvas{display:block;width:100%;height:100%}
+#info{position:absolute;left:12px;top:12px;background:rgba(21,39,49,.88);padding:10px 12px;border-radius:8px;line-height:1.6;max-width:calc(100% - 24px)}
+#info b{font-size:15px}
+#tools{position:absolute;right:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.bad{color:var(--bad)} .ok{color:var(--ok)} .dim{color:var(--dim)}
+#bar{position:absolute;left:12px;bottom:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;pointer-events:none}
+#bar > *{pointer-events:auto}
+#bar button.on{background:#2a8a7e;border-color:#2a8a7e}
+#bar .sep{width:8px}
+#cutpos{width:160px}
+#meas{background:rgba(21,39,49,.88);padding:5px 9px;border-radius:6px}
+#meas:empty{display:none}
+#bar label.mockui{background:rgba(21,39,49,.88);padding:4px 8px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:6px}
+#bar label.mockui input{padding:0;width:110px}
+#engv{font-variant-numeric:tabular-nums;min-width:250px}
+#mockbox table{font-size:12px;border-collapse:collapse;margin-bottom:8px} #mockbox td{padding:2px 4px;vertical-align:top}
+#mockbox td:first-child{color:var(--dim);white-space:nowrap}
+.mp{display:flex;align-items:center;gap:7px;font-size:12px;padding:3px 6px;border-radius:5px;cursor:pointer}
+.mp:hover{background:var(--item)} .mp.off{opacity:.4} .mp i{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+@media (max-width:700px){#app{flex-direction:column}#side{width:auto;height:45%}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <header>
+      <a href="/" style="color:var(--dim);text-decoration:none;font-size:13px">&larr; All projects</a>
+      <h1 style="margin-top:6px" id="title">Configurator</h1>
+      <div class="dim" id="note" style="font-size:13px"></div>
+    </header>
+    <div class="scroll">
+      <div class="grp">Options</div>
+      <div id="opts"></div>
+      <div id="status" class="dim" style="margin-top:8px;font-size:13px"></div>
+      <div class="grp">Parts</div>
+      <div id="parts" class="dim" style="font-size:13px">-</div>
+      <div id="mockbox" style="display:none"><div class="grp">Car mockup</div><div id="mockspec"></div><div id="mockparts"></div></div>
+      <details style="margin-top:14px"><summary class="dim" style="font-size:12px;cursor:pointer">build log</summary><pre id="log"></pre></details>
+    </div>
+  </aside>
+  <main id="main">
+    <canvas id="cv"></canvas>
+    <div id="info" class="dim">Generating…</div>
+    <div id="tools">
+      <select id="bed" title="Build plate">
+        <option value="256">Bed 256 mm (X1/P1/A1)</option>
+        <option value="180">Bed 180 mm (A1 mini)</option>
+      </select>
+      <button id="ov" title="Faces steeper than 45° that face down, above the bed">Overhangs: on</button>
+      <button id="fit">Reset view</button>
+    </div>
+    <div id="bar">
+      <button data-v="iso">Iso</button><button data-v="top">Top</button><button data-v="front">Front</button><button data-v="side">Side</button>
+      <span class="sep"></span>
+      <select id="cut" title="Section plane"><option value="">Section: off</option><option>X</option><option>Y</option><option>Z</option></select>
+      <input id="cutpos" type="range" min="0" max="1000" value="500" disabled title="Section position">
+      <button id="flip" disabled title="Keep the other side">Flip</button>
+      <span class="sep"></span>
+      <button id="edges" title="Outline sharp edges">Edges</button>
+      <button id="ruler" title="Click two points on the model to measure">Ruler</button>
+      <button id="spin">Spin</button>
+      <span class="sep extra"></span>
+      <button id="dirt" class="on extra" title="The dirt hill and glass it sits in">Dirt</button>
+      <button id="snake" class="extra" title="A snake crawling through">&#9654; Snake</button>
+      <span class="sep mockui"></span>
+      <button id="car" class="mockui" title="Show the part in a rough mockup of the car">Car</button>
+      <label class="mockui car-only">Explode <input id="explode" type="range" min="0" max="1000" value="0"></label>
+      <button id="lights" class="mockui car-only" title="Pop the headlights up / down">Lights</button>
+      <button id="wink" class="mockui car-only" title="The classic pop-up wink">Wink</button>
+      <button id="air" class="mockui car-only" title="Air through the intake at road speed">&#9654; Air</button>
+      <label class="mockui car-only"><input id="mph" type="range" min="0" max="120" value="60"><span id="mphv"></span></label>
+      <label class="mockui car-only" title="Throttle pedal">Throttle <input id="thr" type="range" min="0" max="100" value="20"><span id="engv"></span></label>
+      <button id="dash" class="mockui car-only" title="Look at the dash from the driver's seat">Dash</button>
+      <span id="meas"></span>
+    </div>
+  </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+<script>
+const PLA = 1.24, OVER = Math.cos(Math.PI / 4) + 1e-3;   // g/cm3; 45 deg limit (exact 45 is fine)
+const cv = document.getElementById('cv'), info = document.getElementById('info');
+const renderer = new THREE.WebGLRenderer({canvas: cv, antialias: true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.localClippingEnabled = true;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0f1d25);
+const cam = new THREE.PerspectiveCamera(40, 1, 1, 5000); cam.up.set(0, 0, 1);
+const ctl = new THREE.OrbitControls(cam, cv);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(1, -1.5, 2); scene.add(sun);
+let bed = null, mesh = null, inner = null, showOver = true, cur = null, edgeLines = null;
+
+function makeBed(s){
+  if(bed) scene.remove(bed);
+  bed = new THREE.Group();
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({color: 0x1a2c36}));
+  plate.position.z = -0.05; bed.add(plate);
+  const grid = new THREE.GridHelper(s, s / 10, 0x3d5a68, 0x24404d); grid.rotation.x = Math.PI / 2; bed.add(grid);
+  scene.add(bed);
+}
+
+function resize(){
+  const r = cv.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+
+function volume(pos){                       // signed tetra sum, mm3
+  let v = 0;
+  for(let i = 0; i < pos.length; i += 9){
+    const [ax, ay, az, bx, by, bz, cx, cy, cz] = pos.subarray(i, i + 9);
+    v += ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx);
+  }
+  return Math.abs(v) / 6;
+}
+
+function colorize(g){
+  const pos = g.attributes.position.array, n = g.attributes.normal.array, z0 = g.boundingBox.min.z;
+  const col = new Float32Array(pos.length); let area = 0;
+  for(let i = 0; i < pos.length; i += 9){
+    const zc = (pos[i + 2] + pos[i + 5] + pos[i + 8]) / 3;
+    const bad = showOver && n[i + 2] < -OVER && zc > z0 + 0.2;
+    const c = bad ? [1, .42, .36] : [.78, .84, .88];
+    for(let k = 0; k < 9; k += 3) col.set(c, i + k);
+    if(bad){
+      const a = new THREE.Vector3(pos[i], pos[i+1], pos[i+2]), b = new THREE.Vector3(pos[i+3], pos[i+4], pos[i+5]),
+            c2 = new THREE.Vector3(pos[i+6], pos[i+7], pos[i+8]);
+      area += b.sub(a).cross(c2.sub(a)).length() / 2;
+    }
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return area;
+}
+
+let openPath = null;                      // URL of the open part
+function show(buf, name){
+  const g = new THREE.STLLoader().parse(buf);
+  g.computeVertexNormals(); g.computeBoundingBox();
+  const bb = g.boundingBox, c = new THREE.Vector3(); bb.getCenter(c);
+  g.translate(-c.x, -c.y, -bb.min.z); g.computeBoundingBox();   // centred, on the bed
+  const shift = [c.x, c.y, bb.min.z];                             // viewer -> file coordinates
+  const over = colorize(g);
+  if(mesh){ scene.remove(mesh, inner); mesh.geometry.dispose(); }
+  if(edgeLines){ scene.remove(edgeLines); edgeLines.geometry.dispose(); edgeLines = null; }
+  clearRuler();
+  mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({vertexColors: true, roughness: .7, metalness: 0,
+                                                           side: THREE.DoubleSide, clippingPlanes: []}));
+  inner = new THREE.Mesh(g, new THREE.MeshBasicMaterial({color: 0xd9734e, side: THREE.BackSide, clippingPlanes: []}));
+  inner.visible = false;                      // shows the cut face (inside surfaces) while sectioning
+  scene.add(mesh, inner);
+  cur = {name, g, over, shift, path: openPath};
+  buildExtras(shift); buildMock();
+  report(); fitView(); applyCut();
+  if(document.getElementById('edges').classList.contains('on')) toggleEdges(true);
+}
+
+function report(){
+  if(!cur) return;
+  const s = +document.getElementById('bed').value, d = new THREE.Vector3(); cur.g.boundingBox.getSize(d);
+  const v = volume(cur.g.attributes.position.array) / 1000, tris = cur.g.attributes.position.count / 3;
+  const fits = d.x <= s && d.y <= s && d.z <= s;
+  info.className = '';
+  info.innerHTML = `<b>${cur.name}</b><br>
+    ${d.x.toFixed(1)} × ${d.y.toFixed(1)} × ${d.z.toFixed(1)} mm
+    <span class="${fits ? 'ok' : 'bad'}">${fits ? 'fits bed' : 'too big for bed'}</span><br>
+    ${v.toFixed(1)} cm³ · ~${(v * PLA).toFixed(0)} g PLA solid · ${tris.toLocaleString()} tris<br>
+    <span class="${cur.over > 1 ? 'bad' : 'ok'}">overhang &gt;45°: ${cur.over.toFixed(0)} mm²</span>
+    <span class="dim">(as loaded, flat side down)</span>`;
+}
+
+function fitView(){
+  const s = +document.getElementById('bed').value;
+  const r = mesh ? mesh.geometry.boundingBox.getBoundingSphere(new THREE.Sphere()).radius : s / 2;
+  const h = mesh ? mesh.geometry.boundingBox.max.z / 2 : 0;
+  ctl.target.set(0, 0, h);
+  cam.position.set(r * 1.6, -r * 2.4, h + r * 1.6);
+  cam.near = r / 100; cam.far = r * 40 + s * 4; cam.updateProjectionMatrix(); ctl.update();
+}
+
+/* ---- presets: every on/off combination is pre-built by presets.py; this page only switches ---- */
+const PROJECT = decodeURIComponent(location.pathname.split('/')[2] || '');
+const SKEY = 'cfg.' + PROJECT;
+let CFG = null, files = [], partName = null, vals = {};
+const $ = id => document.getElementById(id);
+function load(k){ try { return JSON.parse(sessionStorage.getItem(k)); } catch(e){ return null; } }
+function save(k, v){ try { sessionStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+const keyOf = () => CFG.options.map(o => o.id + '=' + (vals[o.id] ? 1 : 0)).join(',') || 'default';
+
+function renderOpts(){
+  const box = $('opts'); box.innerHTML = '';
+  if(!CFG.options.length) box.innerHTML = '<div class="dim" style="font-size:13px">No presets - change it by asking in the chat.</div>';
+  CFG.options.forEach(o => {
+    const d = document.createElement('div'); d.className = 'opt';
+    d.innerHTML = `<span>${o.label}</span><span class="chips"><button data-v="1">on</button><button data-v="0">off</button></span>`;
+    d.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('on', !!+b.dataset.v === !!vals[o.id]);
+      b.onclick = () => { vals[o.id] = !!+b.dataset.v; save(SKEY, vals); renderOpts(); pick(); };
+    });
+    box.append(d);
+  });
+}
+function pick(){
+  const k = keyOf(), r = CFG.presets[k];
+  $('log').textContent = r ? r.log : '';
+  if(!r || !r.ok){
+    files = []; renderParts();
+    $('status').innerHTML = `<span class="bad">${r ? 'This preset failed to build - see the build log.' : 'Not pre-built yet.'}</span>
+      Run <code>python presets.py ${PROJECT}</code>.`;
+    return;
+  }
+  $('status').innerHTML = r.stale ? '<span class="bad">Out of date - the generator changed.</span> Run <code>python presets.py '
+                                    + PROJECT + '</code>.' : '';
+  files = r.files; SCENE = r.scene || null; renderParts();
+  const f = files.find(f => f.name === partName) || files.reduce((a, f) => f.size > a.size ? f : a);   // else the main (biggest) part
+  openPart(f);
+}
+function renderParts(){
+  const box = $('parts'); box.className = ''; box.innerHTML = files.length ? '' : '<span class="dim">-</span>';
+  files.forEach(f => {
+    const e = document.createElement('div'); e.className = 'part' + (f.name === partName ? ' on' : '');
+    e.innerHTML = `<span>${f.name}</span><a href="${f.url}" download="${f.name}.stl">STL</a>`
+                + (f.obj ? `<a href="${f.obj}" download="${f.name}.obj">OBJ</a>` : '');
+    e.onclick = ev => { if(ev.target.tagName !== 'A') openPart(f); };
+    box.append(e);
+  });
+}
+let loading = 0;
+async function openPart(f){
+  partName = f.name; renderParts();
+  info.className = 'dim'; info.textContent = 'Loading ' + f.name + '…';
+  const n = ++loading, r = await fetch(f.url), buf = await r.arrayBuffer();
+  if(n !== loading) return;                            // a newer pick won
+  openPath = f.url;
+  show(buf, f.name);
+}
+function init(){
+  return fetch('/api/config?project=' + encodeURIComponent(PROJECT)).then(r => r.json()).then(c => {
+    CFG = c; CFG.options = CFG.options || [];
+    const saved = load(SKEY) || {};
+    CFG.options.forEach(o => vals[o.id] = o.id in saved ? saved[o.id] : o.default);
+    document.title = PROJECT + ' - configurator';
+    $('title').textContent = PROJECT;
+    $('note').textContent = CFG.note || CFG.goal || '';
+    renderOpts(); pick();
+  }).catch(() => { info.textContent = 'Open this through python serve.py.'; });
+}
+init();
+
+document.getElementById('bed').onchange = e => { makeBed(+e.target.value); report(); };
+document.getElementById('ov').onclick = e => {
+  showOver = !showOver; e.target.textContent = 'Overhangs: ' + (showOver ? 'on' : 'off');
+  if(cur){ cur.over = colorize(cur.g); report(); }
+};
+document.getElementById('fit').onclick = fitView;
+
+/* ---- views ---- */
+function view(v){
+  if(!mesh) return;
+  const bb = mesh.geometry.boundingBox, r = bb.getBoundingSphere(new THREE.Sphere()).radius * 2.6, h = bb.max.z / 2;
+  ctl.target.set(0, 0, h);
+  const P = {iso: [r * .62, -r * .92, h + r * .62], top: [0, -0.001, h + r * 1.3],
+             front: [0, -r * 1.3, h], side: [r * 1.3, 0, h]}[v];
+  cam.position.set(P[0], P[1], P[2]); ctl.update();
+}
+document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => view(b.dataset.v));
+
+/* ---- section plane ---- */
+const plane = new THREE.Plane(); let flip = false;
+function applyCut(){
+  const ax = document.getElementById('cut').value, pos = document.getElementById('cutpos');
+  pos.disabled = document.getElementById('flip').disabled = !ax;
+  if(!mesh) return;
+  if(!ax){
+    mesh.material.clippingPlanes = []; inner.visible = false; mesh.material.side = THREE.DoubleSide;
+    mesh.material.needsUpdate = true; return;
+  }
+  const i = 'XYZ'.indexOf(ax), bb = mesh.geometry.boundingBox;
+  const lo = bb.min.getComponent(i), hi = bb.max.getComponent(i), at = lo + (hi - lo) * pos.value / 1000;
+  const sgn = [-1, 1, -1][i] * (flip ? -1 : 1);       // keep the half away from the matching view's camera
+  const n = new THREE.Vector3(); n.setComponent(i, sgn);
+  plane.set(n, -sgn * at);
+  mesh.material.clippingPlanes = [plane]; inner.material.clippingPlanes = [plane];
+  mesh.material.side = THREE.FrontSide; inner.visible = true;
+  mesh.material.needsUpdate = true; inner.material.needsUpdate = true;
+  pos.title = ax + ' = ' + (at + (cur ? cur.shift[i] : 0)).toFixed(1) + ' mm (file coordinates)';
+}
+document.getElementById('cut').onchange = e => {
+  applyCut(); const v = {X: 'side', Y: 'front', Z: 'top'}[e.target.value]; if(v) view(v);   // face the cut
+};
+document.getElementById('cutpos').oninput = applyCut;
+document.getElementById('flip').onclick = () => { flip = !flip; applyCut(); };
+
+/* ---- edges ---- */
+function toggleEdges(on){
+  document.getElementById('edges').classList.toggle('on', on);
+  if(edgeLines){ scene.remove(edgeLines); edgeLines.geometry.dispose(); edgeLines = null; }
+  if(on && mesh){
+    edgeLines = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30),
+                                       new THREE.LineBasicMaterial({color: 0x10212a}));
+    scene.add(edgeLines);
+  }
+}
+document.getElementById('edges').onclick = e => toggleEdges(!e.target.classList.contains('on'));
+
+/* ---- spin ---- */
+document.getElementById('spin').onclick = e => { ctl.autoRotate = !ctl.autoRotate; e.target.classList.toggle('on', ctl.autoRotate); };
+
+/* ---- ruler: click two points ---- */
+let ruler = false, rpts = [], robjs = [];
+const meas = document.getElementById('meas');
+function clearRuler(){ robjs.forEach(o => scene.remove(o)); robjs = []; rpts = []; meas.textContent = ruler ? 'click two points' : ''; }
+document.getElementById('ruler').onclick = e => { ruler = !ruler; e.target.classList.toggle('on', ruler); clearRuler(); };
+let rdown = null;
+cv.addEventListener('pointerdown', e => { rdown = [e.clientX, e.clientY]; });
+cv.addEventListener('pointerup', e => {
+  if(!ruler || !mesh || !rdown || Math.hypot(e.clientX - rdown[0], e.clientY - rdown[1]) > 4) return;
+  const r = cv.getBoundingClientRect(), ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), cam);
+  const hit = ray.intersectObject(mesh)[0]; if(!hit) return;
+  if(rpts.length === 2) clearRuler();
+  rpts.push(hit.point.clone());
+  const rad = Math.max(0.8, cam.position.distanceTo(hit.point) / 200);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(rad, 12, 8), new THREE.MeshBasicMaterial({color: 0xffd23f, depthTest: false}));
+  dot.position.copy(hit.point); dot.renderOrder = 999; scene.add(dot); robjs.push(dot);
+  if(rpts.length === 1){ meas.textContent = 'click the second point'; return; }
+  const a = rpts[0], b = rpts[1], d = b.clone().sub(a);
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]),
+                              new THREE.LineBasicMaterial({color: 0xffd23f, depthTest: false}));
+  line.renderOrder = 999; scene.add(line); robjs.push(line);
+  meas.textContent = d.length().toFixed(2) + ' mm  (dx ' + Math.abs(d.x).toFixed(1) + ', dy ' + Math.abs(d.y).toFixed(1)
+                     + ', dz ' + Math.abs(d.z).toFixed(1) + ')';
+});
+
+/* hook for the local project chat (serve.py injects shared/chat.js) */
+window.__viewer = {
+  THREE, scene, camera: cam, canvas: cv,
+  meshes: () => mesh ? [mesh] : [],
+  info: () => {
+    if(!cur) return {page: 'configurator', project: PROJECT};
+    const d = new THREE.Vector3(); cur.g.boundingBox.getSize(d);
+    return {page: 'configurator', project: PROJECT, part: cur.name, file: 'out' + cur.path,
+            options: CFG ? vals : null, size_mm: [d.x, d.y, d.z].map(v => +v.toFixed(1))};
+  },
+  toFile: p => cur ? [p[0] + cur.shift[0], p[1] + cur.shift[1], p[2] + cur.shift[2]] : p,
+  coords: 'file coordinates (mm) of the generated STL',
+  reload: init,                                        // after the chat rebuilt the presets
+};
+/* ---- scene extras from the build's scene.json: dirt hill + glass, and a snake to play ---- */
+let SCENE = null, extras = null, snake = null;
+const UP = new THREE.Vector3(0, 0, 1), XAX = new THREE.Vector3(1, 0, 0);
+function buildExtras(shift){
+  if(extras){ scene.remove(extras); extras.traverse(o => o.geometry && o.geometry.dispose()); extras = null; }
+  snake = null; $('snake').innerHTML = '&#9654; Snake';
+  const hasDirt = !!(SCENE && SCENE.dirt);           // snake-hide style scene: dirt, glass, snake
+  document.querySelectorAll('.extra').forEach(e => e.style.display = hasDirt ? '' : 'none');
+  if(!hasDirt) return;
+  extras = new THREE.Group(); extras.position.set(-shift[0], -shift[1], -shift[2]);
+  const P = SCENE.dirt.profile, [y0, y1] = SCENE.dirt.y, xs = P.map(p => p[0]);
+  const sh = new THREE.Shape(); sh.moveTo(P[0][0], 0); P.forEach(([x, z]) => sh.lineTo(x, z)); sh.lineTo(xs[xs.length - 1], 0);
+  const dg = new THREE.ExtrudeGeometry(sh, {depth: y1 - y0, bevelEnabled: false});
+  dg.rotateX(Math.PI / 2); dg.translate(0, y1, 0);                 // profile (x, z) swept across y0..y1
+  const dirt = new THREE.Mesh(dg, new THREE.MeshStandardMaterial({color: 0x7a5636, roughness: 1, transparent: true,
+                                                                   opacity: .38, depthWrite: false, side: THREE.DoubleSide}));
+  const G = SCENE.glass, x0 = Math.min(...xs), x1 = Math.max(...xs), quad = v => {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals(); return g; };
+  const gm = new THREE.MeshBasicMaterial({color: 0x9fd3e0, transparent: true, opacity: .12, depthWrite: false, side: THREE.DoubleSide});
+  const ga = new THREE.Mesh(quad([G.x,y0,0, G.x,y1,0, G.x,y1,G.top, G.x,y0,0, G.x,y1,G.top, G.x,y0,G.top]), gm);
+  const gb = new THREE.Mesh(quad([x0,G.y,0, x1,G.y,0, x1,G.y,G.top, x0,G.y,0, x1,G.y,G.top, x0,G.y,G.top]), gm);
+  dirt.renderOrder = ga.renderOrder = gb.renderOrder = 2;
+  extras.userData.dirt = [dirt, ga, gb];
+  [dirt, ga, gb].forEach(o => o.visible = $('dirt').classList.contains('on'));
+  extras.add(dirt, ga, gb);
+  scene.add(extras);
+}
+$('dirt').onclick = e => { e.target.classList.toggle('on');
+  if(extras) extras.userData.dirt.forEach(o => o.visible = e.target.classList.contains('on')); };
+
+function makeSnake(){
+  const S = SCENE.snake, path = S.path.map(p => new THREE.Vector3(...p)), arc = [0];
+  for(let i = 1; i < path.length; i++) arc.push(arc[i - 1] + path[i].distanceTo(path[i - 1]));
+  const N = 110, M = 12, geo = new THREE.BufferGeometry(), col = new Float32Array(N * M * 3), idx = [];
+  for(let i = 0; i < N; i++){
+    const t = i / (N - 1), dark = Math.sin(t * 46) > .35 || (i > 2 && i < 5);   // ball-python bands
+    for(let j = 0; j < M; j++) col.set(dark ? [.24, .15, .08] : [.72, .55, .3], (i * M + j) * 3);
+    if(i < N - 1) for(let j = 0; j < M; j++){
+      const a = i * M + j, b = i * M + (j + 1) % M, c = a + M, d = b + M; idx.push(a, c, b, b, c, d); }
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * M * 3), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setIndex(idx);
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({vertexColors: true, roughness: .5}));
+  // the head: a wide, flat wedge with eyes, riding on the front of the body
+  const head = new THREE.Group(), skull = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14),
+    new THREE.MeshStandardMaterial({color: 0x5a3a1e, roughness: .5}));
+  skull.scale.set(S.radius * 1.9, S.radius * 1.25, S.radius * .8); head.add(skull);
+  for(const sd of [-1, 1]){
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(S.radius * .2, 10, 8), new THREE.MeshStandardMaterial({color: 0x111111, roughness: .2}));
+    eye.position.set(S.radius * .75, sd * S.radius * .95, -S.radius * .35); head.add(eye);
+  }
+  m.add(head);
+  m.renderOrder = 1; extras.add(m);
+  const total = arc[arc.length - 1];
+  return {S, path, arc, total, geo, N, M, m, head3: head, head: Math.min(S.length, total), playing: true};   // starts on the dirt
+}
+function along(sn, s){                    // point + tangent at arc length s; straight on past either end
+  const {path, arc, total} = sn, n = path.length;
+  let j = s <= 0 ? 0 : s >= total ? n - 2 : arc.findIndex(a => a > s) - 1;
+  const a = path[j], b = path[j + 1], T = b.clone().sub(a).normalize();
+  return [a.clone().addScaledVector(T, s - arc[j]), T];
+}
+function poseSnake(sn){
+  const {S, N, M} = sn, pos = sn.geo.attributes.position.array, ctr = [];
+  for(let i = 0; i < N; i++){             // centre line: the head leads, the body follows the same path
+    const s = sn.head - i * S.length / (N - 1), [p, T] = along(sn, s);
+    let side = new THREE.Vector3().crossVectors(T, UP);
+    if(side.length() < .3) side.crossVectors(T, XAX);
+    side.normalize();
+    const env = Math.min(1, i / 12);      // the head stays on line, the body swings
+    ctr.push(p.addScaledVector(side, S.wiggle * env * Math.sin(2 * Math.PI * s / S.wave)));
+  }
+  for(let i = 0; i < N; i++){
+    const t = i / (N - 1), T = ctr[Math.min(i + 1, N - 1)].clone().sub(ctr[Math.max(i - 1, 0)]).normalize().negate();
+    const r = S.radius * (t < .04 ? .62 + t * 9 : t > .55 ? Math.max(.12, 1 - (t - .55) / .45 * .9) : 1);
+    let u = new THREE.Vector3().crossVectors(T, UP); if(u.length() < .3) u.crossVectors(T, XAX);
+    u.normalize(); const v = new THREE.Vector3().crossVectors(T, u);
+    for(let j = 0; j < M; j++){
+      const a = j / M * 2 * Math.PI, q = ctr[i].clone().addScaledVector(u, Math.cos(a) * r).addScaledVector(v, Math.sin(a) * r * .8);
+      pos.set([q.x, q.y, q.z], (i * M + j) * 3);
+    }
+  }
+  const T = ctr[0].clone().sub(ctr[2]).normalize();
+  let u = new THREE.Vector3().crossVectors(T, UP); if(u.length() < .3) u.crossVectors(T, XAX); u.normalize();
+  sn.head3.position.copy(ctr[0]).addScaledVector(T, S.radius * .6);
+  sn.head3.setRotationFromMatrix(new THREE.Matrix4().makeBasis(T, u, new THREE.Vector3().crossVectors(T, u)));
+  sn.geo.attributes.position.needsUpdate = true; sn.geo.computeVertexNormals(); sn.geo.computeBoundingSphere();
+}
+$('snake').onclick = () => {
+  if(!extras) return;
+  if(!snake || snake.head >= snake.total){ if(snake) extras.remove(snake.m); snake = makeSnake(); }
+  else snake.playing = !snake.playing;
+  $('snake').innerHTML = snake.playing ? '&#10073;&#10073; Snake' : '&#9654; Snake';
+};
+
+/* ---- car mockup from the build's scene.json {mock: {parts, adapter, flow, spec}} ---- */
+let MOCK = null;                                   // {root, items, flow, on, e, air, ang, blinkT}
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshStandardMaterial({color: 0x1a2a32, roughness: 1}));
+ground.visible = false; scene.add(ground);
+const carMat = new THREE.MeshStandardMaterial({color: 0xeeeeea, roughness: .55, side: THREE.DoubleSide});
+function mockUI(){
+  const has = !!(SCENE && SCENE.mock), on = !!(MOCK && MOCK.on);
+  document.querySelectorAll('.mockui').forEach(e => e.style.display = has && (on || !e.classList.contains('car-only')) ? '' : 'none');
+  $('car').classList.toggle('on', on); $('mockbox').style.display = has && on ? '' : 'none';
+}
+function buildMock(){
+  if(MOCK){ if(MOCK.on) setCar(false); scene.remove(MOCK.root); MOCK.root.traverse(o => o.geometry && o.geometry.dispose()); MOCK = null; }
+  mockUI();
+  if(!SCENE || !SCENE.mock) return;
+  const S = SCENE.mock, base = openPath.slice(0, openPath.lastIndexOf('/') + 1), root = new THREE.Group();
+  root.visible = false; scene.add(root);
+  MOCK = {root, items: [], on: false, e: 0, air: false, ang: 0, blinkT: 0, S};
+  S.parts.forEach(pt => {
+    const it = {pt, obj: null}; MOCK.items.push(it);
+    fetch(base + pt.file).then(r => r.arrayBuffer()).then(buf => {
+      const g = new THREE.STLLoader().parse(buf); g.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({color: pt.color, roughness: .6, metalness: .1, transparent: pt.opacity < 1,
+                                                  opacity: pt.opacity, depthWrite: pt.opacity >= 1, side: THREE.DoubleSide});
+      let obj = new THREE.Mesh(g, mat);
+      const pv = pt.spin || pt.hinge || pt.throttle;
+      if(pv){                                      // pivot on its axis so it can turn / swing
+        g.translate(-pv.center[0], -pv.center[1], -pv.center[2]);
+        const piv = new THREE.Group(); piv.add(obj); obj = piv; it.home = new THREE.Vector3(...pv.center);
+        it.lift = 0; it.goal = 0;
+      } else it.home = new THREE.Vector3();
+      it.obj = obj; root.add(obj); placeMock();
+    });
+  });
+  // air + exhaust: points riding each stream's centre line, coloured by temperature
+  const streams = (S.flows || []).map(F => {
+    const P = F.path, n = P.length, fr = [], col = [];
+    for(let i = 0; i < n; i++){
+      const a = new THREE.Vector3(...P[Math.max(i - 1, 0)]), b = new THREE.Vector3(...P[Math.min(i + 1, n - 1)]);
+      const T = b.sub(a).normalize(); let u = new THREE.Vector3().crossVectors(T, UP); if(u.length() < .3) u.crossVectors(T, XAX);
+      u.normalize(); fr.push([new THREE.Vector3(...P[i]), u, new THREE.Vector3().crossVectors(T, u)]);
+      const c = F.colors.filter(([k]) => k <= i).pop(), v = c ? c[1] : '#ffffff';
+      col.push(v[0] === '$' ? v.slice(1) : new THREE.Color(v));    // "$zone": coloured live by the engine sim
+    }
+    const seeds = [];
+    for(let k = 0; k < F.n; k++) seeds.push([Math.random() * n, Math.sqrt(Math.random()), Math.random() * 6.283]);
+    return {fr, col, seeds, rad: F.radius, speed: F.speed, off: 0};
+  });
+  const N = streams.reduce((a, f) => (f.off = a) + f.seeds.length, 0), pg = new THREE.BufferGeometry();
+  pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  const pts = new THREE.Points(pg, new THREE.PointsMaterial({vertexColors: true, size: 9, transparent: true, opacity: .95, depthWrite: false, depthTest: false}));
+  pts.visible = false; pts.frustumCulled = false; pts.renderOrder = 10; root.add(pts);   // drawn over the pipes so the flow shows
+  MOCK.flow = {streams, pts};
+  if(S.engine) makeGauges(S.engine, root);
+  $('mockspec').innerHTML = '<table>' + S.spec.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>';
+  $('mockparts').innerHTML = '';
+  MOCK.items.forEach(it => {
+    const d = document.createElement('div'); d.className = 'mp';
+    d.innerHTML = `<i style="background:${it.pt.color}"></i>${it.pt.name.replace(/_/g, ' ')}`;
+    d.onclick = () => { if(!it.obj) return; it.obj.visible = !it.obj.visible; d.classList.toggle('off', !it.obj.visible); };
+    $('mockparts').append(d);
+  });
+  mockUI();
+}
+function placeMock(){                              // explode offsets + the adapter's place in the car
+  if(!MOCK) return;
+  const e = MOCK.e;
+  MOCK.items.forEach(({pt, obj, home}) => obj && obj.position.copy(home).add(new THREE.Vector3(...pt.explode).multiplyScalar(e)));
+  if(MOCK.on && cur){
+    const A = SCENE.mock.adapter, M = new THREE.Matrix4().set(...A.matrix.flat());
+    const m = new THREE.Matrix4().makeTranslation(...A.explode.map(v => v * e)).multiply(M)
+              .multiply(new THREE.Matrix4().makeTranslation(...cur.shift));
+    [mesh, inner].forEach(o => { o.matrixAutoUpdate = false; o.matrix.copy(m); o.matrixWorldNeedsUpdate = true; });
+  }
+  MOCK.flow.pts.visible = MOCK.air && e < .02;
+}
+function setCar(on){
+  MOCK.on = on; MOCK.root.visible = on; ground.visible = on; if(bed) bed.visible = !on;
+  if(edgeLines) edgeLines.visible = !on;
+  if(on){
+    mesh.material.__own = mesh.material.__own || mesh.material; mesh.material = carMat;
+    const V = SCENE.mock.view || {target: [-350, 380, 380], camera: [1100, 1500, 1150]};
+    cam.near = 5; cam.far = 30000; cam.updateProjectionMatrix();
+    ctl.target.set(...V.target); cam.position.set(...V.camera); ctl.update();
+  } else {
+    if(mesh.material.__own) mesh.material = mesh.material.__own;
+    [mesh, inner].forEach(o => { o.matrixAutoUpdate = true; o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.updateMatrix(); });
+    MOCK.air = false; $('air').innerHTML = '&#9654; Air'; fitView();
+  }
+  placeMock(); mockUI();
+}
+$('car').onclick = () => MOCK && setCar(!MOCK.on);
+$('explode').oninput = e => { if(MOCK){ MOCK.e = e.target.value / 1000; placeMock(); } };
+$('air').onclick = () => { if(!MOCK) return; MOCK.air = !MOCK.air; $('air').innerHTML = MOCK.air ? '&#10073;&#10073; Air' : '&#9654; Air'; placeMock(); };
+const mphText = () => { const v = +$('mph').value, psi = .5 * 1.204 * (v * .44704) ** 2 / 6894.76;
+  $('mphv').textContent = `${v} mph · ram +${psi.toFixed(2)} psi`; };
+$('mph').oninput = mphText; mphText();
+function lightsTo(side, up){ MOCK.items.forEach(it => { if(it.pt.hinge && (!side || it.pt.hinge.side === side)) it.goal = up; }); }
+$('lights').onclick = () => { if(!MOCK) return; MOCK.lit = !MOCK.lit; lightsTo(null, +MOCK.lit); $('lights').classList.toggle('on', MOCK.lit); };
+$('wink').onclick = () => {                        // the driver-side one goes up and straight back down
+  if(!MOCK) return;
+  const now = MOCK.lit ? 0 : 1;
+  lightsTo('left', now); setTimeout(() => lightsTo('left', 1 - now), 650);
+};
+/* ---- engine sim: throttle + road speed -> rpm, turbo spool, manifold pressure, AFR ---- */
+const ZC = {amb: new THREE.Color('#7fd0ff'), hot: new THREE.Color(), ic: new THREE.Color(), man: new THREE.Color()};
+const C_AMB = new THREE.Color('#7fd0ff'), C_HOT = new THREE.Color('#ff7a1a'), C_WARM = new THREE.Color('#ffd27a'),
+      C_VAC = new THREE.Color('#9b5cff'), C_BOOST = new THREE.Color('#ff2d2d'), C_ATM = new THREE.Color('#e8f4ff');
+function engStep(dt){
+  const E = MOCK.S.engine, st = MOCK.eng || (MOCK.eng = {rpm: E.idle, pc: 0, map: -10, afr: 14.7, bov: 0, thr: 0});
+  const thr = +$('thr').value / 100, mph = +$('mph').value, ease = (cur, goal, tau) => cur + (goal - cur) * Math.min(1, dt / tau);
+  const rpmGoal = mph > 0 ? Math.min(E.redline, Math.max(E.idle, mph * E.rpm_per_mph)) : E.idle + thr * (E.redline - E.idle) * .85;
+  st.rpm = ease(st.rpm, rpmGoal, .35);
+  // the turbo only builds boost with load and exhaust flow: barely any in neutral, full from ~3500 rpm wide open
+  const avail = E.boost_psi * Math.min(1, Math.max(0, (st.rpm - 2000) / 1500)) * (mph > 0 ? 1 : .1);
+  const pcGoal = avail * Math.pow(thr, 1.5);
+  st.pc = ease(st.pc, pcGoal, pcGoal > st.pc ? .8 : .25);              // spools slowly, dumps fast
+  if(st.thr - thr > .35 && st.pc > 3) st.bov = 1.2;                    // throttle snapped shut on boost: blow-off valve
+  st.bov = Math.max(0, st.bov - dt); st.thr = thr;
+  // closed throttle = deep vacuum; opening it lets the manifold up to the charge pressure
+  const vac = -10.5 + Math.min(1, st.rpm / E.redline) * 1.5;           // psi, ~-21 inHg at idle
+  st.map = ease(st.map, vac + (st.pc - vac) * Math.pow(thr, .45), .1);
+  const decel = thr < .03 && st.rpm > 1400 && mph > 0;
+  st.afr = ease(st.afr, decel ? 19.5 : st.map > 0 ? 14.7 - 3.2 * st.map / E.boost_psi : 14.7 + Math.max(0, -st.map - 8) * .15, .2);
+  // air colours: blue outside air, orange when compressed (hot), warm after the intercooler,
+  // and in the manifold purple for vacuum, white at atmospheric, red under boost
+  const b = Math.max(0, st.pc) / E.boost_psi;
+  ZC.hot.copy(C_AMB).lerp(C_HOT, Math.min(1, b * 1.2)); ZC.ic.copy(C_AMB).lerp(C_WARM, Math.min(1, b * .8));
+  if(st.map < 0) ZC.man.copy(C_ATM).lerp(C_VAC, Math.min(1, -st.map / 9));
+  else ZC.man.copy(C_ATM).lerp(C_BOOST, Math.min(1, st.map / E.boost_psi));
+  const p = st.map >= 0 ? `+${st.map.toFixed(1)} psi boost` : `${(-st.map * 2.036).toFixed(0)} inHg vacuum`;
+  $('engv').textContent = `${Math.round(st.rpm / 50) * 50} rpm · ${p} · AFR ${st.afr.toFixed(1)}${st.bov > 0 ? ' · pssh!' : ''}`;
+  MOCK.items.forEach(({pt, obj}) => {                                   // throttle plate: closed .. 80 deg wide open
+    if(pt.throttle && obj) obj.quaternion.setFromAxisAngle(new THREE.Vector3(...pt.throttle.axis), thr * 1.4);
+  });
+  if((MOCK.gT = (MOCK.gT || 0) + dt) > .05){ MOCK.gT = 0; drawGauges(st, mph); }
+  return st;
+}
+function makeGauges(E, root){                      // a canvas texture on a disc for each dial
+  MOCK.gauges = E.gauges.map(g => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const tex = new THREE.CanvasTexture(cv), m = new THREE.Mesh(new THREE.CircleGeometry(g.r, 48),
+      new THREE.MeshBasicMaterial({map: tex}));
+    const n = new THREE.Vector3(...g.normal), up = new THREE.Vector3(...g.up), rt = new THREE.Vector3().crossVectors(up, n);
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(rt, up, n)); m.position.set(...g.center);
+    root.add(m);
+    return {g, cv, tex};
+  });
+}
+function dial(c, v, lo, hi, ticks, label, txt, red){   // needle sweeps 270 deg, lo at bottom-left
+  const W = 256, cx = 128, a = t => Math.PI * .75 + t * Math.PI * 1.5;
+  c.fillStyle = '#0b0d10'; c.fillRect(0, 0, W, W);
+  c.strokeStyle = '#9aa3ab'; c.lineWidth = 6; c.beginPath(); c.arc(cx, cx, 120, 0, 7); c.stroke();
+  if(red){ c.strokeStyle = '#e02020'; c.lineWidth = 12; c.beginPath(); c.arc(cx, cx, 104, a((red[0] - lo) / (hi - lo)), a((red[1] - lo) / (hi - lo))); c.stroke(); }
+  c.fillStyle = '#f2f2f2'; c.strokeStyle = '#f2f2f2'; c.font = 'bold 22px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  ticks.forEach(t => { const q = a((t - lo) / (hi - lo));
+    c.lineWidth = 4; c.beginPath(); c.moveTo(cx + Math.cos(q) * 112, cx + Math.sin(q) * 112); c.lineTo(cx + Math.cos(q) * 96, cx + Math.sin(q) * 96); c.stroke();
+    c.fillText(String(t).replace('-', '−'), cx + Math.cos(q) * 76, cx + Math.sin(q) * 76); });
+  c.font = '18px sans-serif'; c.fillStyle = '#9aa3ab'; c.fillText(label, cx, 178);
+  c.font = 'bold 24px sans-serif'; c.fillStyle = '#ffb347'; c.fillText(txt, cx, 208);
+  const q = a(Math.min(1, Math.max(0, (v - lo) / (hi - lo))));
+  c.strokeStyle = '#ff6a00'; c.lineWidth = 5; c.beginPath(); c.moveTo(cx, cx); c.lineTo(cx + Math.cos(q) * 104, cx + Math.sin(q) * 104); c.stroke();
+  c.fillStyle = '#333'; c.beginPath(); c.arc(cx, cx, 12, 0, 7); c.fill();
+}
+function drawGauges(st, mph){
+  (MOCK.gauges || []).forEach(({g, cv, tex}) => {
+    const c = cv.getContext('2d');
+    if(g.kind === 'tach') dial(c, st.rpm / 1000, 0, 8, [0, 1, 2, 3, 4, 5, 6, 7, 8], 'x1000 r/min', '', [7.2, 8]);
+    else if(g.kind === 'speedo') dial(c, mph, 0, 140, [0, 20, 40, 60, 80, 100, 120, 140], 'MPH', '');
+    else if(g.kind === 'boost') dial(c, st.map, -15, 15, [-15, -10, -5, 0, 5, 10, 15], 'BOOST psi',
+      st.map >= 0 ? `+${st.map.toFixed(1)}` : `${(-st.map * 2.036).toFixed(0)} inHg`);
+    else if(g.kind === 'afr') dial(c, st.afr, 10, 20, [10, 12, 14, 16, 18, 20], 'AFR', st.afr.toFixed(1), [10, 11]);
+    tex.needsUpdate = true;
+  });
+}
+$('dash').onclick = () => { const V = MOCK && MOCK.S.dash_view; if(V){ ctl.target.set(...V.target); cam.position.set(...V.camera); ctl.update(); } };
+function stepMock(dt){
+  if(!MOCK || !MOCK.on) return;
+  MOCK.items.forEach(it => {                       // pop-ups swing toward their goal
+    if(!it.pt.hinge || !it.obj || it.lift === it.goal) return;
+    it.lift += Math.sign(it.goal - it.lift) * Math.min(Math.abs(it.goal - it.lift), dt * 3.2);
+    const k = it.lift * it.lift * (3 - 2 * it.lift);   // ease in/out
+    it.obj.quaternion.setFromAxisAngle(new THREE.Vector3(...it.pt.hinge.axis), it.pt.hinge.up * k);
+  });
+  const eng = MOCK.S.engine ? engStep(dt) : null;
+  if(!MOCK.air) return;
+  const mph = +$('mph').value, F = MOCK.flow;
+  MOCK.ang += dt * (eng ? 4 + eng.rpm / 250 + Math.max(0, eng.pc) * 6 : 4 + mph * .9);   // turbo shaft (just for show)
+  MOCK.blinkT += dt;
+  MOCK.items.forEach(({pt, obj}) => {
+    if(pt.spin && obj) obj.quaternion.setFromAxisAngle(new THREE.Vector3(...pt.spin.axis), MOCK.ang);
+    if(pt.blink && obj) obj.material.emissive.setHex(Math.floor(MOCK.blinkT * 1.5) % 2 ? 0x000000 : 0xff8800);
+  });
+  if(!F.pts.visible) return;
+  const pos = F.pts.geometry.attributes.position.array, cols = F.pts.geometry.attributes.color.array;
+  // with the sim: speed follows mass flow (rpm x absolute pressure), density follows pressure
+  const abs = p => (14.7 + p) / (14.7 + (eng ? MOCK.S.engine.boost_psi : 0));
+  const flow = eng ? (eng.rpm / MOCK.S.engine.redline) * (14.7 + eng.map) / 14.7 : 0;
+  const step = dt * (eng ? 90 + flow * 1500 : 60 + mph * 9) / 5;   // path samples are 5 mm apart
+  const dens = {amb: abs(0), hot: abs(eng ? eng.pc : 0), ic: abs(eng ? eng.pc : 0), man: abs(eng ? eng.map : 0)};
+  F.streams.forEach(st => st.seeds.forEach((sd, j) => {
+    const n = st.fr.length, k = st.off + j;
+    sd[0] = (sd[0] + step * st.speed * (.8 + .4 * (j % 5) / 4)) % n;
+    const i = Math.floor(sd[0]), [c, u, v] = st.fr[i], r = st.rad[i] * sd[1];
+    pos[k * 3] = c.x + (u.x * Math.cos(sd[2]) + v.x * Math.sin(sd[2])) * r;
+    pos[k * 3 + 1] = c.y + (u.y * Math.cos(sd[2]) + v.y * Math.sin(sd[2])) * r;
+    pos[k * 3 + 2] = c.z + (u.z * Math.cos(sd[2]) + v.z * Math.sin(sd[2])) * r;
+    let cl = st.col[i];
+    if(typeof cl === 'string'){                                   // live zone: its colour, thinned out by its density
+      if(eng && (j * .618) % 1 > dens[cl]) pos[k * 3 + 2] = -1e5;
+      cl = ZC[cl];
+    }
+    cols[k * 3] = cl.r; cols[k * 3 + 1] = cl.g; cols[k * 3 + 2] = cl.b;
+  }));
+  F.pts.geometry.attributes.position.needsUpdate = F.pts.geometry.attributes.color.needsUpdate = true;
+}
+
+makeBed(256); resize(); fitView();
+let lastT = performance.now();
+(function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min(.1, ((now || lastT) - lastT) / 1000); lastT = now || lastT;
+  if(snake && snake.playing){
+    snake.head = Math.min(snake.total, snake.head + dt * snake.total / 12);   // ~12 s: in the stairs, out the hatch
+    poseSnake(snake);
+    if(snake.head >= snake.total){ snake.playing = false; $('snake').innerHTML = '&#8635; Snake'; }   // rests on the hill
+  }
+  stepMock(dt);
+  if(ctl.autoRotate) ctl.update(); renderer.render(scene, cam);
+})();
+</script>
+</body>
+</html>

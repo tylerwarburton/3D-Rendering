@@ -1100,7 +1100,7 @@ if __name__ == "__main__":
     print("Building waterfall v13...")
     model = build()
     from pathlib import Path
-    out = Path(__file__).resolve().parents[3] / "out" / "python-enclosure" / "stl"
+    out = Path(__file__).resolve().parents[3] / "out" / "waterfall" / "stl"
     out.mkdir(parents=True, exist_ok=True)
     cq.exporters.export(model, str(out / "waterfall.step"))
     cq.exporters.export(model, str(out / "waterfall.stl"),
