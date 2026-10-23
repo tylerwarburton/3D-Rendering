@@ -538,7 +538,15 @@ Object.keys(groups).forEach(g=>{
 function findVariant(f, cfg){
   return fams[f].find(id=>{ const c = PARTS[id].cfg;
     return c.g === cfg.g && (c.angle ?? null) === (cfg.angle ?? null) && (c.vent || '') === (cfg.vent || '')
-        && (c.gate || '') === (cfg.gate || ''); });
+        && (c.gate || '') === (cfg.gate || '') && (c.size || '') === (cfg.size || '')
+        && (c.plug || '') === (cfg.plug || ''); });
+}
+/* exact match, else drop vents, else the plain standard part */
+function pickVariant(f, cfg){
+  const std = cfg.size ? 'std' : cfg.size;
+  return findVariant(f, cfg) || findVariant(f, {...cfg, vent:''})
+      || findVariant(f, {...cfg, vent:'', size:std}) || findVariant(f, {...cfg, vent:'', gate:'', size:std})
+      || findVariant(f, {...cfg, plug:''});
 }
 function buildCfg(id){
   const box = document.getElementById('cfg'), p = PARTS[id];
@@ -556,6 +564,14 @@ function buildCfg(id){
     angles.forEach(a=> html += `<button class="chip" data-angle="${a}" aria-pressed="${a===c.angle}">${a}&deg;</button>`);
     html += '</div>';
   }
+  const sizes = ['min','std','long'].filter(s=>fams[f].some(v=>PARTS[v].cfg.size===s));
+  if(sizes.length > 1){
+    html += '<div class="row"><span class="lab">size</span>';
+    sizes.forEach(s=>{ const ok = !!pickVariant(f, {...c, size:s});
+      html += `<button class="chip" data-size="${s}" aria-pressed="${c.size===s}"${ok?'':' disabled'}>`
+            + `${{min:'min', std:'standard', long:'long'}[s]}</button>`; });
+    html += '</div>';
+  }
   const vstyles = [...new Set(fams[f].map(v=>PARTS[v].cfg.vent).filter(v=>v!==undefined))];
   if(vstyles.length > 1 || (vstyles.length === 1 && vstyles[0])){
     const opts = ['', ...vstyles.filter(v=>v).sort()];
@@ -569,6 +585,12 @@ function buildCfg(id){
   if(gates.length > 1){
     html += '<div class="row"><span class="lab">variant</span>';
     gates.sort().forEach(v=> html += `<button class="chip" data-gatev="${v}" aria-pressed="${(c.gate||'')===v}">${v ? 'with gate' : 'plain'}</button>`);
+    html += '</div>';
+  }
+  if(fams[f].some(v=>PARTS[v].cfg.plug)){
+    html += '<div class="row"><span class="lab">plug</span>';
+    ['', 'off'].forEach(v=>{ const ok = !!findVariant(f, {...c, plug:v});
+      html += `<button class="chip" data-plug="${v}" aria-pressed="${(c.plug||'')===v}"${ok?'':' disabled'}>${v||'on'}</button>`; });
     html += '</div>';
   }
   if(p.anim){
@@ -590,18 +612,25 @@ function buildCfg(id){
     const [lab, n, idx] = p.dl_parts[+b.dataset.dlp];
     if(idx) dlPiece(curId, lab, idx); else dlPart(n === '.' ? curId : n); }));
   box.querySelectorAll('[data-gatev]').forEach(b=>b.addEventListener('click',()=>{
-    const v = findVariant(f, {...c, gate:b.dataset.gatev}); if(v) show(v); }));
+    const v = pickVariant(f, {...c, gate:b.dataset.gatev});
+    if(v) show(v); }));
   const cov = document.getElementById('bCov');
   if(cov) cov.addEventListener('click', ()=>{ coverHidden = !coverHidden;
     cov.setAttribute('aria-pressed', coverHidden); applyCover(p); });
   box.querySelectorAll('[data-port]').forEach(b=>b.addEventListener('click',()=>{
     const i = +b.dataset.port, g = c.g.split('');
     g[i] = g[i]==='M' ? 'F' : 'M';
-    const v = findVariant(f, {...c, g:g.join('')}); if(v) show(v); }));
+    const v = findVariant(f, {...c, g:g.join('')}) || pickVariant(f, {...c, g:g.join('')}); if(v) show(v); }));
   box.querySelectorAll('[data-angle]').forEach(b=>b.addEventListener('click',()=>{
     const a = +b.dataset.angle;
     const v = findVariant(f, {...c, angle:a}) || findVariant(f, {...c, angle:a, vent:''});
     if(v) show(v); }));
+  box.querySelectorAll('[data-size]').forEach(b=>b.addEventListener('click',()=>{
+    const v = findVariant(f, {...c, size:b.dataset.size}) || findVariant(f, {...c, size:b.dataset.size, vent:''})
+           || findVariant(f, {...c, size:b.dataset.size, vent:'', gate:''});
+    if(v) show(v); }));
+  box.querySelectorAll('[data-plug]').forEach(b=>b.addEventListener('click',()=>{
+    const v = findVariant(f, {...c, plug:b.dataset.plug}); if(v) show(v); }));
   box.querySelectorAll('[data-vent]').forEach(b=>b.addEventListener('click',()=>{
     const v = findVariant(f, {...c, vent:b.dataset.vent}); if(v) show(v); }));
 }

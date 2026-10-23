@@ -35,6 +35,10 @@ python ../../serve.py              # local viewers at http://localhost:8000 (con
   use the J-slot twist latch. `assemble(outer, inner, ports, genders)` adds a
   female socket or male end per port. Gate flange = `flange_set(g, gate=True)`
   -> outer plate, one-piece gate body (`gn_body`), blade (`gn_blade(beta)`).
+  Gate coupler = `gate_coupler(g)` (same channel + blade, optional in the
+  viewer's coupler). The old slide gate is gone (2026-10-12).
+  Sizes min / std / long (`SIZES`, `leg_len`/`branch_len`/`coupler_len`) on
+  coupler, elbow, tee, wye. Coupler long = old vent tube; M/M min = shim.
 - `tools/fittings_viewer.py` + `tools/viewer_template.html` - the viewer.
   One build writes the single-file `fittings_viewer.html` (must stay
   < ~31 MB) and `site/` (index.html + `data/chunk_N.json`, each <= 9 MB).
@@ -55,6 +59,8 @@ needs the `downloads` capability (carried forward automatically).
 
 - Latch: 9 entry slots per socket, 3 lugs per male end, 20 deg twist ->
   joints go together at 9 angles, 40 deg apart (Tyler 2026-10-11).
+- Gate body is printed + installed (2026-10-11): gate changes go in the
+  BLADE only - never change `gn_body` notches/channel.
 - Export through `fittings.export_ready()`; the viewer packs exact geometry.
 - Gate flange: bolt heads outside the tank, washer + nut on the flat back
   plate under the skirt (no recesses). Skirt must stay clear of a 12 mm washer.

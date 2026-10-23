@@ -48,6 +48,42 @@ LEG_LENGTH = SOCKET_DEPTH + LEAD_IN         # 42.00 mm
 # JUNCTION_CLEARANCE adds extra clear space between inserted pipe surfaces.
 JUNCTION_CLEARANCE = 10.0                   # → tee/wye legs = 71.55 mm
 
+# ---- SIZES: every fitting's legs come in three lengths (viewer size chips)
+#   'min'  shortest that still works: a tube in each socket stops on a
+#          MIN_LEAD floor; tubes in neighbouring sockets clear by MIN_CLEAR.
+#          A male/male coupler at 'min' IS the shim.
+#   'std'  the original sizes (default).
+#   'long' every leg SIZE_UP longer; the coupler is the old 150 mm vent tube.
+SIZES        = ['min', 'std', 'long']
+SIZE         = 'std'
+SIZE_UP      = 20.0
+MIN_LEAD     = 2.5
+MIN_CLEAR    = 1.0
+COUPLER_LONG = 150.0
+
+
+def leg_len(size=None):
+    """Straight leg (elbow legs, wye trunk): mouth to the bend / junction."""
+    return {'min': SOCKET_DEPTH + MIN_LEAD, 'std': LEG_LENGTH,
+            'long': LEG_LENGTH + SIZE_UP}[size or SIZE]
+
+
+def branch_len(size=None):
+    """Tee leg / wye branch: mouth to the junction centre. A tube in it must
+    clear a tube in the neighbouring socket: leg > SOCKET_DEPTH + PIPE_OD/2."""
+    base = SOCKET_DEPTH + PIPE_OD / 2
+    return {'min': base + MIN_CLEAR, 'std': base + JUNCTION_CLEARANCE,
+            'long': base + JUNCTION_CLEARANCE + SIZE_UP}[size or SIZE]
+
+
+def coupler_len(genders, size=None):
+    """Coupler mouth to mouth. 'min' = a MIN_LEAD floor behind each female
+    socket (male/male has no body at all: that is the shim)."""
+    s = size or SIZE
+    if s == 'min':
+        return sum(SOCKET_DEPTH + MIN_LEAD for g in genders.upper() if g == 'F')
+    return {'std': 2 * LEG_LENGTH, 'long': COUPLER_LONG}[s]
+
 # Mesh density
 SEG_CYL         = 96
 SEG_TORUS_MAJOR = 96
@@ -379,22 +415,20 @@ def outer_leg(p_open, axis_dir, length=LEG_LENGTH):
 PORT_NAMES = {
     'elbow':     ['A', 'B'],             # A = the leg on the bed, B = the turned leg
     'coupler':   ['A', 'B'],
-    'vent_tube': ['A', 'B'],
     'tee':       ['A', 'B', 'C'],        # A, B = the run, C = the branch
     'u_bend':    ['A', 'B'],
-    'slide_gate': ['A', 'B'],            # A = on the bed
     'y_fitting': ['T', 'L', 'R'],        # trunk, left branch, right branch
     'flange':    ['A'],
     'cap':       ['A'],
 }
 PORT_GENDER = {                          # the build defaults - edit freely
-    'elbow': 'FF', 'coupler': 'FF', 'vent_tube': 'FF', 'tee': 'FFF',
-    'u_bend': 'FF', 'y_fitting': 'FFF', 'flange': 'F', 'slide_gate': 'FF', 'cap': 'M',
+    'elbow': 'FF', 'coupler': 'FF', 'tee': 'FFF',
+    'u_bend': 'FF', 'y_fitting': 'FFF', 'flange': 'F', 'cap': 'M',
 }
 ELBOW_ANGLE   = 90.0          # any angle 0 < a <= 180
 ELBOW_ANGLES  = [22.5, 30.0, 45.0, 60.0, 90.0]   # the set the viewer offers
 VENT = {                      # vent lattice on the body, away from the ports
-    'elbow': False, 'u_bend': False, 'coupler': False, 'vent_tube': True,
+    'elbow': False, 'u_bend': False, 'coupler': False,
     'tee': False, 'y_fitting': False,
 }
 VENT_STYLE    = 'scale'       # 'scale' = snake-scale diamonds, 'hex' = honeycomb
@@ -415,7 +449,6 @@ VENT_MALE_MARGIN = 4.0        # solid from a MALE port's mouth (no collar in the
 def vm(g):
     """Vent margin from a port's mouth: past the latch collar for F, short for M."""
     return (COLLAR_L + COLLAR_T + 0.3 + VENT_MARGIN) if g.upper() == 'F' else VENT_MALE_MARGIN
-VENT_TUBE_L   = 150.0         # straight vent section, mouth to mouth
 
 
 def male_port(open_end, axis_dir):
@@ -532,7 +565,7 @@ def _tile(style):
     return hole, w, pv, w / 2
 
 
-VENT_PHASES = [0.0, 0.013, 0.029, 0.047, 0.071]   # tiny pattern rotations, tried in turn
+VENT_PHASES = [0.0, 0.013, 0.029, 0.047, 0.071, 0.089, 0.103, 0.127]   # tiny pattern rotations, tried in turn
 
 
 def vent_path(segments, style=None, r_in=None, r_out=None,
@@ -811,10 +844,10 @@ def tube_along(samples, radius, sections=SEG_CYL):
     return mesh
 
 
-def _elbow_parts(angle_deg=None, radius=None):
+def _elbow_parts(angle_deg=None, radius=None, size=None):
     th = np.radians(angle_deg if angle_deg is not None else ELBOW_ANGLE)
     R = radius if radius is not None else BEND_R
-    L = LEG_LENGTH
+    L = leg_len(size)
     A_open, A_dir = (R, 0, -L), (0, 0, 1)
     end = np.array([R * np.cos(th), 0, R * np.sin(th)])
     tang = np.array([-np.sin(th), 0, np.cos(th)])
@@ -825,10 +858,10 @@ def _elbow_parts(angle_deg=None, radius=None):
     return outer, inner, [(A_open, A_dir), (B_open, B_dir)], (R, th)
 
 
-def make_elbow(genders=None, angle=None, vent=None, radius=None, labels=False, style=None):
+def make_elbow(genders=None, angle=None, vent=None, radius=None, labels=False, style=None, size=None):
     """Elbow, any angle (ELBOW_ANGLE). Two ports, A on the bed leg, B turned."""
     g = genders or PORT_GENDER['elbow']
-    outer, inner, ports, (R, th) = _elbow_parts(angle, radius)
+    outer, inner, ports, (R, th) = _elbow_parts(angle, radius, size)
     v = VENT['elbow'] if vent is None else vent
     (A, _), (B, dB) = ports
     end = np.array([R * np.cos(th), 0, R * np.sin(th)])
@@ -846,10 +879,15 @@ def make_elbow_90(genders=None, vent=None, labels=False, style=None):
     return make_elbow(genders, 90.0, vent, labels=labels, style=style)
 
 
-def make_coupler(genders=None, vent=None, labels=False, length=None, style=None):
-    """Straight coupler, a port at each end."""
-    g = genders or PORT_GENDER['coupler']
-    L = length or 2 * LEG_LENGTH
+def make_coupler(genders=None, vent=None, labels=False, style=None, size=None):
+    """Straight coupler, a port at each end, length by size (coupler_len).
+    Male/male at 'min' is the shim (make_shim)."""
+    g = (genders or PORT_GENDER['coupler']).upper()
+    if (size or SIZE) == 'min' and g == 'MM':
+        m = make_shim()                      # band at -SHIM_BAND_T..0
+        ports = [((0, 0, -SHIM_BAND_T), (0, 0, -1)), ((0, 0, 0), (0, 0, 1))]   # labels land on the skirts
+        return (m, port_labels(ports, g, PORT_NAMES['coupler'])) if labels else m
+    L = coupler_len(g, size)
     outer = [cylinder_between((0, 0, 0), (0, 0, L), OUTER_R)]
     inner = [cylinder_between((0, 0, -1), (0, 0, L + 1), BORE_R)]
     ports = [((0, 0, 0), (0, 0, 1)), ((0, 0, L), (0, 0, -1))]
@@ -863,17 +901,10 @@ def make_coupler(genders=None, vent=None, labels=False, length=None, style=None)
     return (m, port_labels(ports, g, PORT_NAMES['coupler'])) if labels else m
 
 
-def make_vent_tube(genders=None, vent=None, labels=False, style=None):
-    """Straight vented section (VENT_TUBE_L): airflow + a look inside."""
-    g = genders or PORT_GENDER['vent_tube']
-    v = VENT['vent_tube'] if vent is None else vent
-    return make_coupler(g, v, labels, length=VENT_TUBE_L, style=style)
-
-
-def make_tee(genders=None, labels=False, vent=None, style=None):
+def make_tee(genders=None, labels=False, vent=None, style=None, size=None):
     """Tee: A-B run, C branch. Legs sized so tubes in A and C cannot collide."""
     g = genders or PORT_GENDER['tee']
-    L = SOCKET_DEPTH + PIPE_OD / 2 + JUNCTION_CLEARANCE   # 71.55 mm
+    L = branch_len(size)                                  # std 71.55 mm
     ports = [((-L, 0, 0), (1, 0, 0)), ((L, 0, 0), (-1, 0, 0)), ((0, 0, L), (0, 0, -1))]
     outer = [cylinder_between((-L, 0, 0), (L, 0, 0), OUTER_R),
              cylinder_between((0, 0, 0), (0, 0, L), OUTER_R)]
@@ -917,12 +948,12 @@ def make_u_bend(genders=None, vent=None, labels=False, style=None):
     return (m, port_labels(ports, g, PORT_NAMES['u_bend'])) if labels else m
 
 
-def make_y_fitting(genders=None, labels=False, vent=None, style=None):
+def make_y_fitting(genders=None, labels=False, vent=None, style=None, size=None):
     """Wye: trunk T plus branches L and R at +-45 degrees."""
     g = genders or PORT_GENDER['y_fitting']
     ba = np.deg2rad(45)
-    bl = SOCKET_DEPTH + PIPE_OD / 2 + JUNCTION_CLEARANCE
-    tl = LEG_LENGTH
+    bl = branch_len(size)
+    tl = leg_len(size)
     T_open, T_dir = (0, 0, -tl), (0, 0, 1)
     d1 = np.array([np.sin(ba), 0, np.cos(ba)]); d2 = np.array([-np.sin(ba), 0, np.cos(ba)])
     B1, B2 = bl * d1, bl * d2
@@ -965,10 +996,10 @@ def cap_female_local():
     return assemble(outer, [], [((0, 0, 0), (0, 0, 1))], 'F')
 
 
-def make_cap(genders=None, labels=False):
+def make_cap(genders=None, labels=False, plug=True):
     """End cap. genders 'M' (default): the male cap below - closes a FEMALE
     port. 'F': a female cap - closes a MALE port. Both print closed end
-    down, no supports."""
+    down, no supports. plug=False: male cap without the inner plug ring."""
     g = (genders or PORT_GENDER['cap']).upper()[0]
     if g == 'F':
         m = cap_female_local()
@@ -977,18 +1008,19 @@ def make_cap(genders=None, labels=False):
         m.apply_translation((0, 0, L))
         lab = [dict(label='A', g='F', pos=[0.0, 0.0, round(L, 2)])]
     else:
-        m = make_cap_male()
+        m = make_cap_male(plug)
         lab = [dict(label='A', g='M', pos=[0.0, 0.0, round(float(m.bounds[1][2]), 2)])]
     return (m, lab) if labels else m
 
 
-def make_cap_male():
+def make_cap_male(plug=True):
     """Latching end cap - closes off any port.
 
     Plugs INTO the socket (a ring whose ID equals the bore, so the snake sees
     a smooth dead end with no ledge) and wraps AROUND the latch collar with a
     skirt carrying the male lugs. Push on, twist LATCH_ROT_DEG clockwise
     looking at the cap, click past the detent. Print disk-down, no supports.
+    plug=False drops the plug ring: just disk + skirt + lugs (Tyler 2026-10-15).
 
     Built in the port frame: z = 0 is the fitting's mouth face, the fitting
     occupies z > 0, the disk sits at z < 0.
@@ -1001,9 +1033,10 @@ def make_cap_male():
         _revolve([(SKIRT_RI, z0 + 0.5), (SKIRT_RO, z0 + 0.5),
                   (SKIRT_RO, SKIRT_L), (SKIRT_RI + 0.4, SKIRT_L),
                   (SKIRT_RI, SKIRT_L - 0.4)]),                              # skirt
-        _revolve([(BORE_R, -0.5), (plug_ro, -0.5), (plug_ro, plug_l - 0.8),
-                  (plug_ro - 0.8, plug_l), (BORE_R, plug_l)]),              # plug
     ]
+    if plug:
+        body.append(_revolve([(BORE_R, -0.5), (plug_ro, -0.5), (plug_ro, plug_l - 0.8),
+                              (plug_ro - 0.8, plug_l), (BORE_R, plug_l)]))  # plug
     if LATCH_ENABLE:
         body.append(lugs_local())
     for k in range(CAP_GRIP_RIBS):
@@ -1171,7 +1204,14 @@ GN_TRAVEL  = np.ceil(2 * BORE_R + 1.0 + (GN_A - BORE_R)) + 0.5   # bottom edge c
 GN_DET_Y   = -21.0                 # spring bump (y) with the blade closed (open notch at +44.5)
 GN_ROUND   = (6.0, 3.0, 3.0)       # gate block: plan corner radius, top edge radius, fillet onto the plate
 GN_FOOT    = (20.0, 42.0, 5.0)     # skirt footprint around the tube: corner radius, +y end; ease (mm) into the walls
-GN_GRIP    = (6.0, 12.0)           # pull-tab grip bar: thickness (y), height above the blade, round top
+GN_GRIP    = (7.0, 15.0)           # pull-tab grip bar: thickness (y), height above the blade, round top
+GN_TAB     = (34.0, 17.0)          # pull tab length past the housing; finger hole height (y)
+# Blade spring fingers (blade only - the printed body's notches are fixed).
+# The bump is the notch's V and fills it (tip at the notch bottom): no
+# rattle when locked. GN_PRELOAD > 0 wedges it in harder (0.1 was too stiff).
+GN_FINGER  = (2.4, 18.0, 1.6)      # finger width, length, gap behind it (> wall deflection)
+GN_PRELOAD = 0.0                   # bump tip past the notch bottom (mm, in x)
+GATE_NOTCH_D = 1.3                 # click notch depth in the channel walls
 
 
 def _plate_box(w, y0, y1, z0, z1):
@@ -1280,33 +1320,46 @@ def gn_body(genders=None):
     plate = _gn_extrude(_gn_plate2d().difference(_gn_holes2d()), d['wall1'], bp)
     outer = [plate, _gn_housing(),
              cylinder_between((0, 0, d['base1'] - 0.3), (0, 0, d['mouth']), OUTER_R)]
-    ac = GN_A + GN_CLR
-    ch2d = sg.box(-ac, -GN_A - GN_CLR, ac, GN_Y1 + 5)
-    for y in (GN_DET_Y, GN_DET_Y + GN_TRAVEL):
-        for sd in (1, -1):
-            ch2d = ch2d.union(_gn_notch(y, sd))
-    inner = [_gn_extrude(ch2d, d['ch0'], d['top']),
+    inner = [_gn_channel(),
              cylinder_between((0, 0, d['wall1'] - 1), (0, 0, d['mouth'] + 1), BORE_R)]
     g = (genders or PORT_GENDER['flange']).upper()
     return assemble(outer, inner, gn_ports(), g)
 
 
-def _gn_housing():
+def _gn_channel():
+    """Blade slot through the gate block (open at the far end) + click notches."""
+    import shapely.geometry as sg
+    d = gn_levels()
+    ac = GN_A + GN_CLR
+    ch2d = sg.box(-ac, -GN_A - GN_CLR, ac, GN_Y1 + 5)
+    for y in (GN_DET_Y, GN_DET_Y + GN_TRAVEL):
+        for sd in (1, -1):
+            ch2d = ch2d.union(_gn_notch(y, sd))
+    return _gn_extrude(ch2d, d['ch0'], d['top'])
+
+
+def _gn_housing(foot=None, bp=None):
     """Gate block + the skirt it stands on, one smooth piece. The skirt is a
     loft from a rounded footprint just around the tube (GN_FOOT) up to the
     block's rounded outline: each layer is the Minkowski mix of the two, so
     corners blend arc to arc (no facets, no creases). It eases into the
     vertical walls just below the slot floor, and flares into the plate with
     a GN_ROUND[2] concave fillet. Nowhere grows faster than 45 deg -> no
-    supports. Layers are convex; consecutive ones are hulled and unioned."""
+    supports. Layers are convex; consecutive ones are hulled and unioned.
+    Defaults = the gate flange. Given a foot + base z (gate coupler): no
+    plate, so no fillet, and the skirt starts H below the vertical walls."""
     import shapely.geometry as sg
     d = gn_levels()
-    bp, top = d['bp1'], d['base1']
+    top = d['base1']
     R, re, rf = GN_ROUND
     R0, yf, L = GN_FOOT
-    blk = sg.box(-GN_W, GN_Y0, GN_W, GN_Y1).buffer(-R, join_style=1).buffer(R, join_style=1)
-    r = OUTER_R + 0.3
-    foot = sg.box(-r, -r, r, yf).buffer(-R0, join_style=1).buffer(R0, join_style=1)
+    blk = _gn_block2d()
+    if foot is None:
+        bp = d['bp1']
+        r = OUTER_R + 0.3
+        foot = sg.box(-r, -r, r, yf).buffer(-R0, join_style=1).buffer(R0, join_style=1)
+    else:
+        rf = 0.0
 
     def ring(poly, z):
         c = np.asarray(poly.exterior.coords)[:-1]
@@ -1348,6 +1401,12 @@ def _gn_housing():
     return union([hull(a, b) for a, b in zip(sl[:-1], sl[1:])])
 
 
+def _gn_block2d():
+    import shapely.geometry as sg
+    R = GN_ROUND[0]
+    return sg.box(-GN_W, GN_Y0, GN_W, GN_Y1).buffer(-R, join_style=1).buffer(R, join_style=1)
+
+
 def gn_ports():
     return [((0, 0, gn_levels()['mouth']), (0, 0, -1))]
 
@@ -1359,14 +1418,21 @@ def _gn_blade_2d():
     import shapely.affinity as sa
     a = GN_A
     top = GN_Y1 + 3.0
-    tab = sg.box(-a, top - 1, a, top + 24).buffer(-4, join_style=1).buffer(4, join_style=1)
-    hole = sg.box(-16, top + 5, 16, top + 14).buffer(-4.4, join_style=1).buffer(4.4, join_style=1)
+    tl, hh = GN_TAB
+    tab = sg.box(-a, top - 1, a, top + tl).buffer(-6, join_style=1).buffer(6, join_style=1)
+    hole = sg.box(-17, top + 5, 17, top + 5 + hh).buffer(-hh / 2 + 0.01, join_style=1).buffer(hh / 2 - 0.01, join_style=1)
     body = sg.box(-a, -a, a, top).union(tab).difference(hole)
-    fw, fl, fh = GATE_FINGER
-    f = GN_DET_Y - 2.5; r = f + fl
-    cut = sg.box(a - fw - 1.0, f - 1.0, a - fw, r).union(sg.box(a - fw - 1.0, f - 1.0, a + 1.0, f))
-    bump = sg.Polygon([(a - 0.2, GN_DET_Y - fh - 0.2), (a + fh, GN_DET_Y), (a - 0.2, GN_DET_Y + fh + 0.2)])
-    bump = bump.buffer(-0.35, join_style=1).buffer(0.35, join_style=1)
+    fw, fl, gap = GN_FINGER
+    # bump = the notch's own V (same flanks), pushed GN_PRELOAD deeper
+    u_bot = GN_A + GN_CLR + GATE_NOTCH_D
+    sl = (GATE_NOTCH_D + 0.8) / (GATE_NOTCH_D + 0.05)      # notch flank: dy per dx
+    tip = u_bot + GN_PRELOAD
+    w0 = 0.5 + (tip - (a - 0.3)) * sl                        # half-width at the bump's root
+    bump = sg.Polygon([(a - 0.3, GN_DET_Y - w0), (tip, GN_DET_Y - 0.5),
+                       (tip, GN_DET_Y + 0.5), (a - 0.3, GN_DET_Y + w0)])
+    bump = bump.buffer(-0.3, join_style=1).buffer(0.3, join_style=1)
+    f = GN_DET_Y - w0 - 1.0; r = f + fl
+    cut = sg.box(a - fw - gap, f - gap, a - fw, r).union(sg.box(a - fw - gap, f - gap, a + 1.0, f))
     for mside in (1, -1):
         c_, b_ = (cut, bump) if mside > 0 else (sa.scale(cut, -1, 1, origin=(0, 0)), sa.scale(bump, -1, 1, origin=(0, 0)))
         body = body.difference(c_).union(b_)
@@ -1380,7 +1446,7 @@ def _gn_grip(z1):
     import shapely.geometry as sg
     from trimesh.creation import extrude_polygon
     t, h = GN_GRIP
-    yc = GN_Y1 + 3.0 + 20.0                      # tab top + 20: past the finger slot
+    yc = GN_Y1 + 3.0 + GN_TAB[0] - t / 2 - 2.0   # far end of the tab, past the finger hole
     prof = sg.box(yc - t / 2, z1 - 0.3, yc + t / 2, z1 + h - t / 2).union(
         sg.Point(yc, z1 + h - t / 2).buffer(t / 2, 32))          # (y, z) profile
     L = 2 * GN_A - 12.0
@@ -1415,6 +1481,42 @@ def flange_labels(genders=None, gate=False):
     if not gate:
         return make_flange(g, labels=True)[1]
     return port_labels(gn_ports(), g, PORT_NAMES['flange'])
+
+
+# ---- gate coupler: the flange's gate block + blade on a straight coupler.
+# Same channel, notches and blade as the gate flange (one blade fits both);
+# no plates - the skirt grows at <= 45 deg straight off the tube. Prints
+# standing on port A, slot roof bridged like the flange body.
+def gc_levels():
+    """z of the coupler ends, in the gate flange's frame (blade at gn_levels)."""
+    import shapely.geometry as sg
+    d = gn_levels()
+    r = OUTER_R - 0.3                                        # foot just inside the tube wall
+    reach = max(np.hypot(*p) for p in _gn_block2d().exterior.coords) - r
+    z1 = d['ch0'] - 0.1
+    zs = z1 - (reach + GN_FOOT[2] / 2 + 0.5)                 # skirt slope stays under 45 deg
+    return dict(foot=sg.Point(0, 0).buffer(r, 64), skirt=zs,
+                a=zs - GN_NECK_L, b=d['mouth'])
+
+
+def gc_ports():
+    c = gc_levels()
+    return [((0, 0, c['a']), (0, 0, 1)), ((0, 0, c['b']), (0, 0, -1))]
+
+
+def gate_coupler(genders=None, labels=False):
+    """Straight coupler with the knife gate: blade slot through a gate block
+    halfway along, click notches open + closed. Blade = gn_blade()."""
+    g = (genders or PORT_GENDER['coupler']).upper()
+    c, d = gc_levels(), gn_levels()
+    outer = [_gn_housing(c['foot'], c['skirt']),
+             cylinder_between((0, 0, c['a']), (0, 0, c['skirt'] + 0.3), OUTER_R),
+             cylinder_between((0, 0, d['base1'] - 0.3), (0, 0, c['b']), OUTER_R)]
+    inner = [_gn_channel(),
+             cylinder_between((0, 0, c['a'] - 1), (0, 0, c['b'] + 1), BORE_R)]
+    ports = gc_ports()
+    m = assemble(outer, inner, ports, g)
+    return (m, port_labels(ports, g, PORT_NAMES['coupler'])) if labels else m
 
 
 def make_pipe_hook():
@@ -1521,20 +1623,20 @@ def make_latch_coupon():
     return with_latches([outer], [inner], [((0, 0, 0), (0, 0, 1))])
 
 
-def port_list(fam, angle=None, **_):
+def port_list(fam, angle=None, size=None, genders='FF', **_):
     """[(open_end, axis_into_fitting)] for a family, in the same order as
     PORT_NAMES - for tools and checks, derived from the same parameters."""
-    L = LEG_LENGTH
-    Lt = SOCKET_DEPTH + PIPE_OD / 2 + JUNCTION_CLEARANCE
+    L = leg_len(size)
+    Lt = branch_len(size)
     if fam == 'elbow':
-        return _elbow_parts(angle)[2]
-    if fam in ('coupler', 'vent_tube'):
-        Lc = VENT_TUBE_L if fam == 'vent_tube' else 2 * L
+        return _elbow_parts(angle, size=size)[2]
+    if fam == 'coupler':
+        Lc = coupler_len(genders, size)
         return [((0, 0, 0), (0, 0, 1)), ((0, 0, Lc), (0, 0, -1))]
     if fam == 'tee':
         return [((-Lt, 0, 0), (1, 0, 0)), ((Lt, 0, 0), (-1, 0, 0)), ((0, 0, Lt), (0, 0, -1))]
     if fam == 'u_bend':
-        return [((BEND_R, 0, -L), (0, 0, 1)), ((-BEND_R, 0, -L), (0, 0, 1))]
+        return [((BEND_R, 0, -LEG_LENGTH), (0, 0, 1)), ((-BEND_R, 0, -LEG_LENGTH), (0, 0, 1))]
     if fam == 'y_fitting':
         a = np.deg2rad(45)
         d1 = np.array([np.sin(a), 0, np.cos(a)]); d2 = np.array([-np.sin(a), 0, np.cos(a)])
@@ -1565,223 +1667,6 @@ def make_male_fit_coupons():
 
 
 # ===========================================================================
-#                    SLIDE GATE  (knife gate: the blade lives inside)
-# ===========================================================================
-# A straight fitting with a flat pocket ARM on one side. The blade lives in
-# the arm: pulled out (OPEN) it sits entirely inside the arm and the tube is
-# clear; pushed in (CLOSED) it crosses the bore and seats in a groove in the
-# far wall. Move it with the knob that sticks out through a slot in the
-# underside of the arm.
-#
-# It clicks into place at both ends: a springy finger on the blade's edge
-# drops into a notch in the arm wall at OPEN and at CLOSED. The OPEN notch has
-# a square back face, so the blade can't be pulled out of the arm - it is
-# captive. To take it out (cleaning), push a paperclip into the small hole in
-# the side of the arm (it presses the finger in) and pull the knob.
-#
-# Assembly: slide the blade into the open far end of the arm, knob through the
-# knob slot, until it clicks (OPEN). That's it - 2 parts, no hardware.
-#
-# The blade crosses at GATE_TILT (45 deg) to the tube axis: the body prints
-# standing on port A and the arm rises at 45 deg - every overhang is 45 deg,
-# no supports. The blade prints flat, knob up.
-GATE_TILT     = 45.0          # blade plane vs the tube axis (deg)
-GATE_T        = 3.0           # blade thickness
-GATE_CLR      = 0.25          # blade in its pocket, per side
-GATE_GROOVE   = 1.4           # how far the blade reaches into the far wall
-GATE_PAD      = 4.0           # arm wall
-GATE_L        = 130.0         # mouth to mouth
-GATE_ZC       = 66.0          # blade centre on the axis
-GATE_TOP      = 70.0          # blade top (w) when closed
-# knob: a STEM through the arm's slot and a wide rounded CAP outside it
-GATE_STEM     = (12.0, 14.0)  # stem: width (u), length (w)
-GATE_CAP      = (26.0, 22.0, 9.0, 4.0)   # cap: width, length, height, edge radius
-GATE_GRIP     = 4             # grip grooves across the cap (push/pull direction)
-# detent: a spring finger on EACH blade edge, bump into notches in the arm wall
-GATE_FINGER   = (2.6, 18.0, 1.15)  # finger: width, length, bump height
-GATE_NOTCH_D  = 1.3           # notch depth (> bump - clearance: it snaps fully home)
-
-
-def _gate_dims():
-    c = np.cos(np.radians(GATE_TILT))
-    d = dict(c=c)
-    d['a'] = BORE_R + GATE_GROOVE                        # blade half-width
-    d['b'] = d['a'] / c                                  # blade tip (w) when closed
-    d['T'] = np.ceil(BORE_R / c + 1.0 + d['b'])          # travel: tip clears the bore
-    d['ap'] = d['a'] + GATE_CLR                          # pocket half-width
-    d['tp'] = GATE_T / 2 + GATE_CLR                      # pocket half-thickness
-    d['tb'] = d['tp'] + GATE_PAD                         # arm half-thickness
-    d['Rb'] = d['ap'] + GATE_PAD                         # arm half-width
-    d['wend'] = GATE_TOP + d['T'] + 2.0                  # arm far end (open)
-    fw, fl, fh = GATE_FINGER
-    d['f_root'] = GATE_TOP - 6.0
-    d['f_free'] = d['f_root'] - fl
-    d['bump'] = d['f_free'] + 2.5                        # bump peak, closed
-    d['k_u'] = 0.0                                       # knob centre across (u)
-    d['k_w'] = GATE_TOP - 1.0 - GATE_CAP[1] / 2          # knob centre along (w), closed
-    return d
-
-
-def _gate_frame():
-    """4x4: blade-plane coords (u across, w out along the arm, n normal) -> world.
-    w = 0 on the tube axis at GATE_ZC; the arm goes up and out (+y, +z)."""
-    t = np.radians(GATE_TILT)
-    X = np.array([1.0, 0, 0]); S = np.array([0, np.cos(t), np.sin(t)])
-    N = np.cross(X, S)
-    M = np.eye(4); M[:3, 0] = X; M[:3, 1] = S; M[:3, 2] = N
-    M[:3, 3] = (0, 0, GATE_ZC)
-    return M
-
-
-def _gate_extrude(poly, n0, n1, frame=True):
-    from trimesh.creation import extrude_polygon
-    m = extrude_polygon(poly, height=n1 - n0)
-    m.apply_translation((0, 0, n0))
-    if frame:
-        m.apply_transform(_gate_frame())
-    return m
-
-
-def _gate_ellipse(a, b):
-    import shapely.geometry as sg
-    import shapely.affinity as sa
-    return sa.scale(sg.Point(0, 0).buffer(1.0, 128), a, b)
-
-
-def gate_ports():
-    return [((0, 0, 0), (0, 0, 1)), ((0, 0, GATE_L), (0, 0, -1))]
-
-
-def _gate_notch(w_peak, square_out, side=1):
-    """Notch in the pocket wall on side +u (side=1) or -u (blade plane), 45 deg
-    flanks so the bump snaps fully home. square_out: the outer (+w) face is
-    square - the bump can drop in from outside but never climb back out."""
-    import shapely.geometry as sg
-    import shapely.affinity as sa
-    d = _gate_dims(); u0 = d['ap'] - 0.05; u1 = d['ap'] + GATE_NOTCH_D
-    h = GATE_NOTCH_D + 1.3                               # half-width along w at the wall
-    if square_out:
-        p = sg.Polygon([(u0, w_peak - h), (u1, w_peak - 0.2), (u1, w_peak + 1.0), (u0, w_peak + 1.0)])
-    else:
-        p = sg.Polygon([(u0, w_peak - h), (u1, w_peak - 0.5), (u1, w_peak + 0.5), (u0, w_peak + h)])
-    return p if side > 0 else sa.scale(p, -1, 1, origin=(0, 0))
-
-
-def make_slide_gate(genders=None, labels=False):
-    """Knife-gate body: straight fitting + 45 deg pocket arm the blade lives
-    in. Prints standing on port A, no supports."""
-    import shapely.geometry as sg
-    g = genders or PORT_GENDER['slide_gate']
-    d = _gate_dims()
-    outer = [cylinder_between((0, 0, 0), (0, 0, GATE_L), OUTER_R),
-             _gate_extrude(sg.box(-d['Rb'], 12.0, d['Rb'], d['wend']), -d['tb'], d['tb'])]
-    a_s = d['ap'] + 0.1
-    pocket = _gate_ellipse(a_s, a_s / d['c']).union(sg.box(-d['ap'], 0, d['ap'], d['wend'] + 3))
-    inner = [cylinder_between((0, 0, -1), (0, 0, GATE_L + 1), BORE_R),
-             _gate_extrude(pocket, -d['tp'], d['tp'])]
-    # detent notches, both walls. CLOSED: V both sides. OPEN: +u square back
-    # (captive), -u V (so one paperclip on the +u side releases the blade)
-    for wp, sq, side in ((d['bump'], False, 1), (d['bump'], False, -1),
-                         (d['bump'] + d['T'], True, 1), (d['bump'] + d['T'], False, -1)):
-        inner.append(_gate_extrude(_gate_notch(wp, sq, side), -d['tp'], d['tp']))
-    # knob slot through the underside (n-) wall, open at the far end
-    sw, sl = GATE_STEM
-    ks = sg.box(d['k_u'] - sw / 2 - 0.4, d['k_w'] - sl / 2 - 0.4,
-                d['k_u'] + sw / 2 + 0.4, d['wend'] + 3)
-    inner.append(_gate_extrude(ks, -d['tb'] - 1, -d['tp'] + 0.3))
-    # release hole: through the +u wall into the OPEN notch (paperclip)
-    wp = d['bump'] + d['T']
-    P0 = _gate_frame() @ np.array([d['ap'] - 0.5, wp, 0, 1]); P1 = _gate_frame() @ np.array([d['Rb'] + 1, wp, 0, 1])
-    inner.append(cylinder_between(P0[:3], P1[:3], 0.8, sections=16))
-    ports = gate_ports()
-    m = assemble(outer, inner, ports, g)
-    return (m, port_labels(ports, g, PORT_NAMES['slide_gate'])) if labels else m
-
-
-def _gate_blade_2d():
-    """Blade outline in the blade plane, CLOSED position."""
-    import shapely.geometry as sg
-    d = _gate_dims(); a, b = d['a'], d['b']
-    body = _gate_ellipse(a, b).intersection(sg.box(-a - 1, -b - 1, a + 1, 0)).union(
-        sg.box(-a, -0.01, a, GATE_TOP))
-    import shapely.affinity as sa
-    fw, fl, fh = GATE_FINGER
-    r, f, bp = d['f_root'], d['f_free'], d['bump']
-    cut = sg.box(a - fw - 1.0, f - 1.0, a - fw, r).union(sg.box(a - fw - 1.0, f - 1.0, a + 1.0, f))
-    # bump: 45 deg flanks, tip rounded so it rolls in and out with a crisp snap
-    bump = sg.Polygon([(a - 0.2, bp - fh - 0.2), (a + fh, bp), (a - 0.2, bp + fh + 0.2)])
-    bump = bump.buffer(-0.35, join_style=1).buffer(0.35, join_style=1)
-    for m in (1, -1):
-        cut_m, bump_m = (cut, bump) if m > 0 else (sa.scale(cut, -1, 1, origin=(0, 0)),
-                                                    sa.scale(bump, -1, 1, origin=(0, 0)))
-        body = body.difference(cut_m).union(bump_m)
-    return body.buffer(0.25, join_style=1).buffer(-0.25, join_style=1)
-
-
-def _gate_knob():
-    """Knob in the blade frame (n- side): a stem through the arm's slot, a
-    45 deg flare (prints unsupported, knob up) and a wide cap with fully
-    rounded edges and shallow round grip grooves across the push direction.
-    Nothing sharp anywhere a finger goes."""
-    import shapely.geometry as sg
-    d = _gate_dims()
-    sw, sl = GATE_STEM
-    cw, cl, ch, cr = GATE_CAP
-    ku, kw_ = d['k_u'], d['k_w']
-    n_face = -GATE_T / 2 + 0.3                       # into the blade
-    n_out = -d['tb'] - 0.6                           # just clear of the arm's face
-    stem = _gate_extrude(sg.box(ku - sw / 2, kw_ - sl / 2, ku + sw / 2, kw_ + sl / 2).buffer(
-        1.5, join_style=1).buffer(-1.5, join_style=1), n_out, n_face, frame=False)
-    # flare + cap as ONE convex hull: stem outline at n_out, full cap at the
-    # flare top, then the rounded top edge (quarter circles inset by cr)
-    flare = 1.35 * max(cw - sw, cl - sl) / 2         # under 45 deg even at the corners
-    n_c0 = n_out - flare                             # cap bottom
-    n_top = n_out - ch - flare                       # cap top
-    pts = []
-    def rect(hw, hl, n, rr=2.0):
-        p = sg.box(ku - hw, kw_ - hl, ku + hw, kw_ + hl).buffer(-rr, join_style=1).buffer(rr, join_style=1)
-        for x, y in np.asarray(p.exterior.coords)[::3]:
-            pts.append((x, y, n))
-    rect(sw / 2, sl / 2, n_out + 0.01)
-    rect(cw / 2, cl / 2, n_c0)
-    for t in np.linspace(0, np.pi / 2, 7):
-        inset = cr * (1 - np.cos(t)); dn = cr * np.sin(t)
-        rect(cw / 2 - inset, cl / 2 - inset, n_top + cr - dn, rr=max(2.0, 2.0 + inset))
-    cap = trimesh.convex.convex_hull(np.array(pts))
-    knob = union([stem, cap])
-    # grip grooves: round-bottomed, across u, on the cap top
-    gr = 1.6
-    grooves = []
-    for i in range(GATE_GRIP):
-        w = kw_ + (i - (GATE_GRIP - 1) / 2) * (cl - 2 * cr) / GATE_GRIP
-        grooves.append(cylinder_between((ku - cw, w, n_top - gr + 0.8), (ku + cw, w, n_top - gr + 0.8),
-                                        gr, sections=24))
-    return difference(knob, union(grooves))
-
-
-def gate_blade(beta=0.0, inserted=True):
-    """The blade. inserted=True: in the body at position beta (0 = OPEN,
-    1 = CLOSED); False: flat on the bed, knob up, as printed."""
-    import shapely.geometry as sg
-    d = _gate_dims()
-    plate = _gate_extrude(_gate_blade_2d(), -GATE_T / 2, GATE_T / 2, frame=False)
-    m = union([plate, _gate_knob()])
-    if not inserted:
-        m.apply_transform(tf.rotation_matrix(np.pi, (1, 0, 0)))   # knob up
-        m.apply_translation((0, 0, -m.bounds[0][2]))
-        return m
-    m.apply_translation((0, d['T'] * (1.0 - beta), 0))           # open = pulled out by T
-    m.apply_transform(_gate_frame())
-    return m
-
-
-def make_gate_blade():
-    """Slide (blade) for the slide gate - print flat, knob up. Slide it into
-    the open far end of the arm, knob through the slot, until it clicks."""
-    return gate_blade(inserted=False)
-
-
-# ===========================================================================
 #                            REGISTRY
 # ===========================================================================
 FITTINGS = {
@@ -1797,9 +1682,8 @@ FITTINGS = {
     'pipe_hook':   make_pipe_hook,
     'latch_coupon': make_latch_coupon,
     'shim':        lambda: trimesh.util.concatenate(make_shim_print()),
-    'vent_tube':   make_vent_tube,
-    'slide_gate':  make_slide_gate,
-    'gate_blade':  make_gate_blade,
+    'gate_coupler': gate_coupler,
+    'gate_blade':  lambda: gn_blade(1.0),
     'male_fit_coupons': lambda: trimesh.util.concatenate(make_male_fit_coupons()),
 }
 

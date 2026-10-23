@@ -246,6 +246,60 @@ its blade (first try had a loose push-in blade; he wanted a real knife gate).
   Download STL give the body only (blade is gate_blade.stl). Mid-travel the
   check shows ~1.6 mm3 overlap = the bump on the wall (intended interference).
 
+### Round 32 - sizes; vent tube + shim merged into the coupler (2026-10-12)
+Tyler: vent tube and coupler are the same thing - one part, variable
+length; shim is a coupler size too. Tee, wye, elbow: min / current
+(default) / bigger.
+- `SIZES` = min / std / long (`leg_len`, `branch_len`, `coupler_len`).
+  min: tube stops on a `MIN_LEAD` 2.5 floor (2.0 broke the 22.5 deg F/F
+  elbow's STL round trip), tee/wye tubes clear by `MIN_CLEAR` 1 mm.
+  long: +`SIZE_UP` 20 mm per leg; coupler long = 150 (the old vent tube).
+- Coupler min: F/F 65, M/F 32.5 body, M/M = `make_shim()` (with its print
+  ring in the viewer). No vents at min (no room).
+- `vent_tube` family + `make_vent_tube` removed; shim viewer entry removed.
+- std sizes unchanged (file names too). Viewer: size chips; the single-file
+  viewer keeps std only (31 MB limit), site/ has every size.
+- Checks: every family watertight at min + long; min: real tubes in every
+  socket never touch each other, caps lock on every port with 0 overlap,
+  male ports latch (run_male). pytest 45/45.
+
+### Round 31 - slide gate removed; gate option on the coupler (2026-10-12)
+Tyler: drop the slide gate + its blade; put the flange's gate mechanism on
+the connector piece as an option.
+- Removed `make_slide_gate`, `gate_blade` (45 deg pocket arm) and the viewer
+  family. `GATE_NOTCH_D` kept (the flange notches use it).
+- `gate_coupler(g)`: straight coupler with the flange's gate block, channel,
+  click notches (`_gn_channel()`, shared) and the SAME blade (`gn_blade`).
+  No plates: the skirt lofts off the tube (`_gn_housing(foot, base)`), its
+  height derived so it stays <= 45 deg. 110.6 mm mouth to mouth (F/F).
+- `gn_body` refactor only: volume + face count identical before/after.
+- Viewer: coupler "plain / with gate" chip; gate variant = coupler + blade,
+  open/close animation, one download per piece.
+- Checks: watertight F/F + M/F; blade overlap 0 open/closed, 23.6 mid;
+  print audit: no skirt overhang (only bed, slot-roof bridge, latch runs,
+  socket floor - same as a plain coupler). pytest 24/24.
+
+### Round 30 - gate blade click: middle ground (2026-10-12)
+Tyler: Round 29 click too stiff; handle is fine (unchanged).
+- `GN_PRELOAD` 0.1 -> 0: bump tip AT the notch bottom - fills the V (no
+  rattle) but no wedge. Finger 2.6 -> 2.4 wide.
+- Wall deflection 1.3 mm, ~8 N (old 5.5, Round 29 11), strain 1.44%.
+  Overlap 0 at open/closed, 23.6 mid-travel. pytest 21/21.
+
+### Round 29 - gate blade: preloaded click, bigger handle (2026-10-11)
+Tyler: blade should click harder at open/closed and handle better; body
+already printed + installed -> BLADE ONLY, body unchanged.
+- Old bump reached only 0.7 mm past the wall and sat 0.6 mm LOOSE in the
+  notch (rattle, weak click).
+- New bump = the notch's own V (same flanks), tip `GN_PRELOAD` 0.1 mm past
+  the notch bottom: squeeze it in, it wedges into the V and stays loaded.
+  On the wall the finger bends 1.4 mm (was 0.7), ~11 N (~2x), 1.7% strain.
+  Finger gap 1.6 (> 1.4, never bottoms out); still seals the bore.
+- Overlap sweep: 3.1 mm3 at open/closed (preloaded), 26.7 between -> snaps
+  into both ends.
+- Tab 34 mm, finger hole 34 x 17 (was 32 x 9), grip bar 7 x 15 (was 6 x 12).
+- pytest 21/21 (new finger test); blade print audit 0 mm2 overhang.
+
 ### Round 28 - 9 latch angles instead of 3 (2026-10-11)
 Tyler: joints only go together at 3 angles; want ~9.
 - Female sockets now have `SLOT_COUNT` = 9 entry slots (every 40 deg); male
@@ -568,6 +622,13 @@ STLs .zip** (every printable part; assemblies excluded). Parts are packed as
 exact float32 vertices + uint32 faces (`fmt: 'f32i'`), so a download is
 identical to the exported STL. Verified in headless Chromium: both buttons
 download, zip CRC OK, all 11 STLs watertight and identical to `out/stl/`.
+
+### Cap plug toggle (2026-10-15)
+Tyler: option for the cap that closes a female port to be "just the cap,
+like a bottle cap" - no tall inner plug ring. `make_cap('M', plug=False)`
+drops the plug; disk + skirt + lugs unchanged, so it latches the same.
+Viewer: cap gets a "plug on / off" chip (file `cap_A-M_noplug.stl`).
+Checked: watertight, lighter, nothing past SKIRT_L (`test_cap_no_plug`).
 
 ## Rules learned the hard way
 - STL is float32. Boolean output can hold vertices < 1e-6 mm apart that

@@ -145,10 +145,10 @@ def _twin(F, fam, cfg):
     through the transform (~10 MB saved)."""
     import trimesh.transformations as tf
     g = cfg['g']
-    if fam in ('elbow', 'coupler', 'u_bend', 'vent_tube') and g == 'MF':
+    if fam in ('elbow', 'coupler', 'u_bend') and g == 'MF':
         src, perm = 'FM', [1, 0]
-        if fam in ('coupler', 'vent_tube'):
-            L = 2 * F.LEG_LENGTH if fam == 'coupler' else F.VENT_TUBE_L
+        if fam == 'coupler':
+            L = F.coupler_len('FM', cfg.get('size'))
             T = tf.translation_matrix((0, 0, L)) @ tf.rotation_matrix(np.pi, (1, 0, 0))
         elif fam == 'elbow':
             th = np.radians(cfg.get('angle', F.ELBOW_ANGLE))
@@ -167,8 +167,10 @@ def _combos(n):
     return [''.join(c) for c in itertools.product('FM', repeat=n)]
 
 
-def _file_name(fam, names, g, angle=None, vent=''):
+def _file_name(fam, names, g, angle=None, vent='', size=''):
     s = fam
+    if size and size != 'std':
+        s += f"_{size}"
     if angle is not None:
         s += f"_{angle:g}deg"
     if g:
@@ -187,37 +189,38 @@ def variants(F, mode='main'):
     ~31 MB a file can be sent at). mode 'elbows': elbow family only."""
     out = []
     styles = list(F.VENT_STYLES)
-    for a in F.ELBOW_ANGLES:
-        for g in _combos(2):
-            out.append(('elbow', dict(g=g, angle=a, vent='')))
-            if True:                      # vents at every angle (twins + 1 um keep it under the limit)
-                out += [('elbow', dict(g=g, angle=a, vent=st)) for st in styles]
+    for sz in F.SIZES:
+        for a in F.ELBOW_ANGLES:
+            for g in _combos(2):
+                out += [('elbow', dict(g=g, angle=a, size=sz, vent=v)) for v in [''] + styles]
     if mode == 'elbows':
         return out
     for g in _combos(2):
+        for sz in F.SIZES:
+            for v in [''] + (styles if sz != 'min' else []):     # no room for vents at min
+                out.append(('coupler', dict(g=g, size=sz, vent=v, gate='')))
+        out.append(('coupler', dict(g=g, size='std', vent='', gate='slide')))
         for v in [''] + styles:
-            out.append(('coupler', dict(g=g, vent=v)))
             out.append(('u_bend', dict(g=g, vent=v)))
-        out += [('vent_tube', dict(g=g, vent=st)) for st in styles]
-        out.append(('slide_gate', dict(g=g)))
     for g in _combos(3):
-        for v in [''] + styles:
-            out.append(('tee', dict(g=g, vent=v)))
-            out.append(('y_fitting', dict(g=g, vent=v)))
+        for sz in F.SIZES:
+            for v in [''] + styles:
+                out.append(('tee', dict(g=g, size=sz, vent=v)))
+                out.append(('y_fitting', dict(g=g, size=sz, vent=v)))
     for g in _combos(1):
         for gate in ('', 'slide'):
             out.append(('flange', dict(g=g, gate=gate)))
-        out.append(('cap', dict(g=g)))
+        out.append(('cap', dict(g=g, plug='')))
+        if g == 'M':
+            out.append(('cap', dict(g=g, plug='off')))
     return out
 
 
 NOTES = {
-    'slide_gate': 'Knife gate: the slide lives in the arm. Push the knob in to close, pull out to open - '
-                  'it clicks at both ends and can\'t fall out (paperclip in the side hole releases it). '
-                  'Two prints: gate body (stands on port A) and slide (flat, knob up).',
     'elbow': 'Elbow - pick the angle. A sits on the bed, B is the turned leg.',
-    'coupler': 'Straight coupler.',
-    'vent_tube': 'Straight vented section: airflow and a look inside.',
+    'coupler': "Straight coupler (min / standard / long = the old vent tube). Male/male at min "
+               "is the shim - its thin ring is a print support, pull it off. Gate: the flange's "
+               'knife gate halfway along - same blade, clicks open and closed.',
     'u_bend': '180 degree return.',
     'tee': 'Tee: A-B is the run, C the branch.',
     'y_fitting': 'Wye: trunk T, branches L and R at 45 degrees.',
@@ -225,7 +228,8 @@ NOTES = {
               '94 x 94 plates, same 4 holes on both. Gate: blade 25 mm in, one-piece body; bolt heads outside, '
               'washer + nut on the flat back plate under the skirt (M6 x 16 + wall).',
     'cap': 'End cap. Male (M) closes a female port; female (F) closes a male port. '
-           'Push on, twist to lock. Prints closed end down, no supports.',
+           'Push on, twist to lock. Prints closed end down, no supports. '
+           'Plug off: male cap without the inner ring - just lid + skirt.',
 }
 
 
@@ -260,29 +264,43 @@ def run(mode='site'):
         kw = {}
         if 'angle' in cfg:
             kw['angle'] = cfg['angle']
+        if 'size' in cfg:
+            kw['size'] = cfg['size']
         if 'vent' in cfg:
             kw['vent'] = bool(cfg['vent'])
             if cfg['vent']:
                 kw['style'] = cfg['vent']
-        if fam == 'slide_gate':
-            # body + blade (packed OPEN) as separate bodies so the viewer can
-            # slide the blade; downloads give the BODY only (dl=[0]) - the
-            # blade is its own print (gate_blade.stl)
-            bodies = [quantize(F.export_ready(F.make_slide_gate(cfg['g']))),
-                      quantize(F.export_ready(F.gate_blade(0.0)))]
-            labels = F.port_labels(F.gate_ports(), cfg['g'], F.PORT_NAMES[fam])
-            d = F._gate_dims(); t = np.radians(F.GATE_TILT)
-            anim = dict(kind='slide', rot=1.0, mover=1,
-                        vec=[0.0, round(-d['T'] * np.cos(t), 4), round(-d['T'] * np.sin(t), 4)])
-            names = F.PORT_NAMES[fam]
-            fname = _file_name(fam, names, cfg['g'])
+        if cfg.get('plug'):
+            kw['plug'] = False
+        if fam == 'coupler' and cfg.get('gate'):
+            # coupler + blade (packed OPEN) as separate bodies so the viewer
+            # can slide the blade; one download per printed piece
+            bodies = [quantize(F.export_ready(F.gate_coupler(cfg['g']))),
+                      quantize(F.export_ready(F.gn_blade(0.0)))]
+            dz = round(float(-min(b.bounds[0][2] for b in bodies)) * 10000) / 10000   # on the 0.1 um grid
+            for b in bodies:
+                b.apply_translation((0, 0, dz))
+            labels = F.port_labels(F.gc_ports(), cfg['g'], F.PORT_NAMES[fam])
+            labels = [dict(l, pos=[l['pos'][0], l['pos'][1], round(l['pos'][2] + dz, 2)]) for l in labels]
+            fname = _file_name(fam, F.PORT_NAMES[fam], cfg['g'])[:-4] + "_gate.stl"
             parts[fname[:-4]] = _pack_multi(bodies, 'Fittings', NOTES[fam], meta, pid=fname[:-4], family=fam,
-                                            cfg=cfg, ports=labels, file=fname, anim=anim, dl=[0],
-                                            dl_parts=[['Gate body', '.'], ['Slide (blade)', 'gate_blade']])
-            bodies[0].export(out / fname)
-            if cfg['g'] == F.PORT_GENDER[fam]:
-                defaults[fam] = fname[:-4]
-                print(f"  {fname:34s} (default, exported: body; blade = gate_blade.stl)")
+                                            cfg=cfg, ports=labels, file=fname,
+                                            anim=dict(kind='slide', rot=1.0, mover=1, el=0.35,
+                                                      vec=[0.0, -float(F.GN_TRAVEL), 0.0]),
+                                            dl_parts=[['Gate coupler', '.', [0]], ['Gate blade', '.', [1]]])
+            continue
+        if fam == 'coupler' and cfg['size'] == 'min' and cfg['g'] == 'MM':
+            # the shim: two bodies (shim + pull-off print ring), standing on a plug tip
+            sb = [quantize(F.export_ready(b)) for b in F.make_shim_print()]
+            z0 = float(min(b.bounds[0][2] for b in sb))
+            z0 = round(z0 * 10000) / 10000
+            for b in sb:
+                b.apply_translation((0, 0, -z0))
+            _, labels = F.make_coupler('MM', labels=True, size='min')
+            labels = [dict(l, pos=[l['pos'][0], l['pos'][1], round(l['pos'][2] - z0, 2)]) for l in labels]
+            fname = _file_name(fam, F.PORT_NAMES[fam], 'MM', size='min')
+            parts[fname[:-4]] = _pack_multi(sb, 'Fittings', NOTES[fam], meta, pid=fname[:-4], family=fam,
+                                            cfg=cfg, ports=labels, file=fname)
             continue
         if fam == 'flange':
             gate = bool(cfg.get('gate'))
@@ -313,12 +331,16 @@ def run(mode='site'):
                 print(f"  {fname:34s} (default, exported: flange body)")
             continue
         names = F.PORT_NAMES[fam]
-        fname = _file_name(fam, names, cfg['g'], cfg.get('angle'), cfg.get('vent', ''))
+        fname = _file_name(fam, names, cfg['g'], cfg.get('angle'), cfg.get('vent', ''), cfg.get('size', ''))
+        if cfg.get('plug'):
+            fname = fname[:-4] + "_noplug.stl"
         vid = fname[:-4]
         tw = _twin(F, fam, cfg)
         if tw:
             src_g, T, perm = tw
-            svid = _file_name(fam, names, src_g, cfg.get('angle'), cfg.get('vent', ''))[:-4]
+            svid = _file_name(fam, names, src_g, cfg.get('angle'), cfg.get('vent', ''), cfg.get('size', ''))[:-4]
+            if svid not in kept:                      # its source had no clean build
+                continue
             sm, slabels = kept[svid]
             M = T @ trimesh.transformations.translation_matrix((0, 0, -sm.metadata['dz']))
             V = trimesh.transform_points(np.asarray(sm.vertices), M)
@@ -334,10 +356,14 @@ def run(mode='site'):
                               dims=[round(float(x), 1) for x in V.max(0) - V.min(0)],
                               tris=parts[svid]['tris'], vol=parts[svid]['vol'])
             continue
-        m, labels = F.FITTINGS[fam](cfg['g'], labels=True, **kw)
-        m = quantize(F.export_ready(m))
+        try:
+            m, labels = F.FITTINGS[fam](cfg['g'], labels=True, **kw)
+            m = quantize(F.export_ready(m))
+        except RuntimeError as e:                     # e.g. vents with no clean pattern on a short leg
+            print(f"  {fname:34s} skipped: {e}")
+            continue
         m, labels = bed(m, labels)
-        if fam in ('elbow', 'coupler', 'u_bend', 'vent_tube', 'tee', 'y_fitting'):
+        if fam in ('elbow', 'coupler', 'u_bend', 'tee', 'y_fitting'):
             kept[vid] = (m, labels)
         parts[vid] = _pack(m, 'Fittings', NOTES[fam], meta, family=fam, cfg=cfg,
                            ports=labels, file=fname)
@@ -345,7 +371,9 @@ def run(mode='site'):
         dv = (F.VENT_STYLE if F.VENT.get(fam, False) else '') if 'vent' in cfg else ''
         is_default = (cfg['g'] == default_g
                       and cfg.get('angle', 90.0) == F.ELBOW_ANGLE
-                      and cfg.get('vent', '') == dv)
+                      and cfg.get('size', 'std') == 'std'
+                      and cfg.get('vent', '') == dv
+                      and not cfg.get('plug'))
         if is_default:
             defaults[fam] = vid
             m.export(out / fname)
@@ -356,7 +384,7 @@ def run(mode='site'):
         return _write(parts, defaults, "elbows_viewer.html")
 
     # --- single parts --------------------------------------------------------
-    singles = ['gate_blade', 'latch_coupon', 'pipe_hook']
+    singles = ['latch_coupon', 'pipe_hook']
     for name in singles:
         fn = F.FITTINGS[name]
         m, labels = fn(), None
@@ -367,18 +395,6 @@ def run(mode='site'):
         note = (fn.__doc__ or name).strip().splitlines()[0]
         parts[name] = _pack(m, 'Fittings', note, meta, ports=labels, file=f"{name}.stl")
         print(f"  {name + '.stl':34s} {m.volume/1000:6.1f} cm3")
-
-    # --- shim: two bodies (shim + pull-off print ring), standing on a plug tip
-    sb = [quantize(F.export_ready(b)) for b in F.make_shim_print()]
-    z0 = min(b.bounds[0][2] for b in sb)
-    for b in sb: b.apply_translation((0, 0, -z0))
-    built['shim'] = sb[0]
-    trimesh.util.concatenate(sb).export(out / "shim.stl")
-    parts['shim'] = _pack_multi(sb, 'Fittings',
-        'Shim: two cap-style male ends back to back, one grip ring each. Prints standing on a '
-        'plug tip; the thin ring under the upper skirt is a print support - pull it off.',
-        meta, file='shim.stl')
-    print("  shim.stl  (shim + print ring)")
 
     # --- male fit coupons: three separate rings, one STL -------------------
     rings = [quantize(F.export_ready(c)) for c in F.make_male_fit_coupons()]
@@ -409,7 +425,9 @@ def run(mode='site'):
     # hosted copy (page + data chunks); _write_site strips the geometry out
     # of `parts`, so the single file is written from a copy first
     import copy
-    single = _write(copy.deepcopy(parts), defaults, "fittings_viewer.html")
+    # the single file keeps the standard sizes only (~31 MB limit); every size is in site/
+    std = {k: v for k, v in parts.items() if (v.get('cfg') or {}).get('size', 'std') == 'std'}
+    single = _write(copy.deepcopy(std), defaults, "fittings_viewer.html")
     if single.stat().st_size > 31.0e6:
         print(f"  !! {single.name} is {single.stat().st_size/1e6:.2f} MB - over the ~31 MB send limit")
     return _write_site(parts, defaults)

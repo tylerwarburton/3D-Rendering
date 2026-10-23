@@ -23,6 +23,11 @@ conversation per project (out/<name>/.chat/: session id + transcript).
     GET  /api/chat/history?project=<name>
     POST /api/chat        {project, message, context}  -> NDJSON stream
     POST /api/chat/new    {project}
+
+Render & print (configurator sidebar + Realistic/AR buttons; shared/studio.py, shared/realistic.js):
+    /glb/<path>.stl                      GLB of that STL (for model-viewer / AR)
+    POST /api/studio/render  {stl, turntable, color}  -> {url}  (Blender PNG / MP4)
+    POST /api/studio/slice   {stl}                    -> time, grams, layers, 3MF url
 """
 import html as H
 import json
@@ -38,12 +43,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 import presets
+from shared import studio
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "out"
 PROJECTS = ROOT / "projects"
 CONFIGURATOR = ROOT / "shared" / "configurator.html"
-CHAT_JS = ROOT / "shared" / "chat.js"
+SHARED = ROOT / "shared"
 CLAUDE = shutil.which("claude")
 TOOLS = ("Read,Edit,Write,Glob,Grep,Bash(python build.py:*),Bash(python ../../presets.py:*),"
          "Bash(python -m pytest:*),Bash(pytest:*)")
@@ -171,6 +177,12 @@ New: <code>python new_project.py &lt;name&gt; "&lt;goal&gt;"</code></div>
 <div class="grid">{cards}</div></body>"""
 
 
+def out_stl(path):
+    """An STL under out/ from a URL path like /<project>/presets/x/part.stl, else None."""
+    f = (OUT / unquote(path).lstrip("/")).resolve()
+    return f if f.suffix.lower() == ".stl" and OUT.resolve() in f.parents and f.is_file() else None
+
+
 def tool_line(b):
     """One short line for a tool call: 'Edit screen_protector.py', 'Bash python build.py'."""
     i = b.get("input") or {}
@@ -209,8 +221,8 @@ class Handler(SimpleHTTPRequestHandler):
         route = u.path
         if route in ("/", "/index.html"):
             return self._page(home())
-        if route == "/_shared/chat.js":
-            return self._send(CHAT_JS.read_text(encoding="utf-8"), "text/javascript; charset=utf-8")
+        if route in ("/_shared/chat.js", "/_shared/realistic.js"):
+            return self._send((SHARED / route[9:]).read_text(encoding="utf-8"), "text/javascript; charset=utf-8")
         if route.startswith("/p/"):
             p = route[3:].strip("/")
             if p not in projects():
@@ -220,6 +232,11 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_header("Location", presets.config(p)["page"])
                 return self.end_headers()
             return self._page(CONFIGURATOR.read_text(encoding="utf-8"), p)
+        if route.startswith("/glb/"):
+            f = out_stl(route[4:])
+            if not f:
+                return self._send("not found", "text/plain", 404)
+            return self._send(studio.glb(f).read_bytes(), "model/gltf-binary")
         if route.startswith("/thumb/"):
             f = (OUT / unquote(route[7:])).resolve()
             if f.suffix.lower() != ".stl" or OUT.resolve() not in f.parents or not f.is_file():
@@ -257,6 +274,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not self._local() or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
             return self._send("forbidden", "text/plain", 403)
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        if route.startswith("/api/studio/"):
+            return self._studio(route, body)
         p = body.get("project", "")
         if p not in projects():
             return self._send("unknown project", "text/plain", 400)
@@ -269,6 +288,22 @@ class Handler(SimpleHTTPRequestHandler):
             return self._chat(p, body.get("message", ""), body.get("context"))
 
         return self._send("not found", "text/plain", 404)
+
+    def _studio(self, route, body):
+        f = out_stl(body.get("stl", ""))
+        if not f:
+            return self._send(json.dumps({"error": "no such STL under out/"}), "application/json", 404)
+        try:
+            if route == "/api/studio/render":
+                r = studio.render(f, bool(body.get("turntable")), body.get("color") or "#c8d4dc")
+                res = {"url": "/" + r.relative_to(OUT).as_posix()}
+            elif route == "/api/studio/slice":
+                res = studio.slice(f)
+            else:
+                return self._send(json.dumps({"error": "not found"}), "application/json", 404)
+        except Exception as e:
+            return self._send(json.dumps({"error": str(e)}), "application/json", 500)
+        return self._send(json.dumps(res), "application/json")
 
     def _chat(self, p, message, context):
         self.send_response(200)

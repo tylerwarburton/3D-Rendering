@@ -20,8 +20,8 @@ python build.py render     # PNG sheets from the exported STL (~1 min)
 `tools/` = verify, coupons, render, layout (connector map).
 Configurator: no options (Tyler: the specs are fixed). **Car** button = rough
 mockup (`tools/mock.py`, `build.py mock` -> `mock/*.stl` + `scene.json`)
-with Explode, Lights / Wink (pop-ups on rear hinges), a spec table and Air (intake + exhaust particles coloured by
-temperature, spinning turbo wheels) at a chosen mph. Tyler's plumbing:
+with Explode, Lights / Wink (pop-ups roll up), Throttle (engine sim: rpm, boost/vacuum, AFR on live dash gauges), Dash (driver's view), Hood (off/on, pop-ups stay), Risk (relative blow-up/knock meter: boost, IAT, AFR, rpm), Isolate (just the vent, screen, ties and adapter), Bay air (without our intake: stock turn signals + a cone filter pulling hot bay air), a spec table and Air (intake + exhaust particles coloured by
+temperature, spinning turbo wheels). Parked, out of gear (no mph slider). Tyler's plumbing:
 false turn signal -> adapter (its socket slides over the housing's duct end -
 that rim is ~136 x 45, the frame this part was measured from - centred on it,
 rim against the stop ledge, pointing straight back along the duct, upright
@@ -48,7 +48,13 @@ bezel faces -y, length along x, duct runs +y. On the car it sits upside down
 side A the passenger side (Tyler 2026-10-11, after trying all of them).
 On the car: centred under the pop-up headlight, its face 1 in ahead of the
 pop-up's front edge and its top 1 in below it (Tyler); the pop-ups sit well
-back of the nose. The vent's duct is skewed ~14 deg to its bezel: on the car
+back of the nose. Later (2026-10-11): pop-ups 2 in further back, vents ~2 in
+lower (Tyler's guess, not measured). Pop-ups (Tyler picked the real NA flip): a box under a
+hood-curved lid, round lens on the underside facing down when closed, flips
+90 deg on a hinge at its back and stands up - lens vertical, lid at the back. Hood a bit higher than first drawn, highest in the
+centre. Engine: makes 20+ psi, boost-controlled to 16; turbo physically a
+bit bigger. Tombstone: small boost (left) + AFR (right) side by side on top,
+radio under them, then a screen with spec dials. The vent's duct is skewed ~14 deg to its bezel: on the car
 the duct runs straight back and the bezel faces forward and OUT, wrapping
 the nose corner (Tyler: angled out, not in). The snub nose is round (not
 pointed, not flat) and rides the bezel's curve out to the fender. Its duct

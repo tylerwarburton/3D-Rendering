@@ -25,6 +25,8 @@ input,select,button{font:inherit;color:var(--fg);background:var(--item);border:1
 #log{white-space:pre-wrap;font-size:11px;color:var(--dim);max-height:240px;overflow:auto}
 #main{flex:1;position:relative;min-width:0}
 canvas{display:block;width:100%;height:100%}
+#risk{position:absolute;right:12px;top:56px;width:250px;background:rgba(21,39,49,.88);padding:10px 12px;border-radius:8px;font-size:13px}
+#risk .rb{height:12px;border-radius:6px;background:#0b1419;margin:6px 0 4px;overflow:hidden} #risk .rb i{display:block;height:100%;border-radius:6px}
 #info{position:absolute;left:12px;top:12px;background:rgba(21,39,49,.88);padding:10px 12px;border-radius:8px;line-height:1.6;max-width:calc(100% - 24px)}
 #info b{font-size:15px}
 #tools{position:absolute;right:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
@@ -43,8 +45,29 @@ canvas{display:block;width:100%;height:100%}
 #mockbox td:first-child{color:var(--dim);white-space:nowrap}
 .mp{display:flex;align-items:center;gap:7px;font-size:12px;padding:3px 6px;border-radius:5px;cursor:pointer}
 .mp:hover{background:var(--item)} .mp.off{opacity:.4} .mp i{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+#tools button.on{background:#2a8a7e;border-color:#2a8a7e}
+.sw{width:22px;height:22px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer}
+.sw.on{border-color:#fff}
+#studio-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#studio-row button{font-size:12px;padding:4px 9px}
+#studio-row button:disabled{opacity:.5;cursor:wait}
+#studio-out{font-size:12px;margin-top:8px;line-height:1.6}
+#studio-out a{color:var(--fg);background:#24414e;border-radius:5px;padding:2px 7px;text-decoration:none}
+#ovl{position:absolute;inset:0;background:#0b1419;display:none;z-index:5}
+#ovl > img,#ovl > video,#ovl > model-viewer{width:100%;height:100%;object-fit:contain;display:block;background:#0f1d25}
+#ovl-x{position:absolute;right:12px;top:12px;z-index:6}
 @media (max-width:700px){#app{flex-direction:column}#side{width:auto;height:45%}}
 </style>
+<script type="importmap">
+{"imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js",
+  "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js",
+  "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+  "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.16/src/index.js",
+  "three-gpu-pathtracer": "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.27/src/index.js"
+}}
+</script>
 </head>
 <body>
 <div id="app">
@@ -60,13 +83,24 @@ canvas{display:block;width:100%;height:100%}
       <div id="status" class="dim" style="margin-top:8px;font-size:13px"></div>
       <div class="grp">Parts</div>
       <div id="parts" class="dim" style="font-size:13px">-</div>
-      <div id="mockbox" style="display:none"><div class="grp">Car mockup</div><div id="mockspec"></div><div id="mockparts"></div></div>
+      <div class="grp">Render &amp; print</div>
+      <div id="swatches" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <div id="studio-row">
+        <button id="gloss" title="PLA is satin, PETG is glossy">PLA</button>
+        <button id="photo" title="Blender (Cycles) photo of this part, ~10 s">Photo</button>
+        <button id="turn" title="Blender turntable video of this part, ~30 s">Turntable</button>
+        <button id="slice" title="Slice in Bambu Studio: X1C 0.4, 0.20mm Standard, PLA Basic">Slice</button>
+      </div>
+      <div id="studio-out" class="dim"></div>
+      <div id="mockbox" style="display:none"><div class="grp" id="mocktitle">Car mockup</div><div id="mockspec"></div><div id="mockparts"></div></div>
       <details style="margin-top:14px"><summary class="dim" style="font-size:12px;cursor:pointer">build log</summary><pre id="log"></pre></details>
     </div>
   </aside>
   <main id="main">
     <canvas id="cv"></canvas>
+    <div id="ovl"><button id="ovl-x">&times; Close</button></div>
     <div id="info" class="dim">Generating…</div>
+    <div id="risk" style="display:none"><b>Chance it blows up</b> <span id="riskv"></span><div class="rb"><i id="riskbar"></i></div><div id="riskwhy" class="dim"></div></div>
     <div id="tools">
       <select id="bed" title="Build plate">
         <option value="256">Bed 256 mm (X1/P1/A1)</option>
@@ -74,6 +108,8 @@ canvas{display:block;width:100%;height:100%}
       </select>
       <button id="ov" title="Faces steeper than 45° that face down, above the bed">Overhangs: on</button>
       <button id="fit">Reset view</button>
+      <button id="real" title="Path trace the current view in the browser - sharpens while you hold still">Realistic</button>
+      <button id="ar" title="3D viewer with AR: on a phone, place the part life-size in your room">AR</button>
     </div>
     <div id="bar">
       <button data-v="iso">Iso</button><button data-v="top">Top</button><button data-v="front">Front</button><button data-v="side">Side</button>
@@ -93,10 +129,13 @@ canvas{display:block;width:100%;height:100%}
       <label class="mockui car-only">Explode <input id="explode" type="range" min="0" max="1000" value="0"></label>
       <button id="lights" class="mockui car-only" title="Pop the headlights up / down">Lights</button>
       <button id="wink" class="mockui car-only" title="The classic pop-up wink">Wink</button>
-      <button id="air" class="mockui car-only" title="Air through the intake at road speed">&#9654; Air</button>
-      <label class="mockui car-only"><input id="mph" type="range" min="0" max="120" value="60"><span id="mphv"></span></label>
+      <button id="air" class="mockui car-only" title="Air through the intake and exhaust (parked, revving)">&#9654; Air</button>
       <label class="mockui car-only" title="Throttle pedal">Throttle <input id="thr" type="range" min="0" max="100" value="20"><span id="engv"></span></label>
       <button id="dash" class="mockui car-only" title="Look at the dash from the driver's seat">Dash</button>
+      <button id="hood" class="mockui car-only" title="Take the hood off to see the engine bay (the pop-ups stay)">Hood</button>
+      <button id="riskbtn" class="mockui car-only" title="Knock / blow-up risk from boost, intake air temp, AFR and rpm">Risk</button>
+      <button id="iso" class="mockui car-only" title="Only the vent, the screen and the adapter">Isolate</button>
+      <button id="bay" class="mockui car-only" title="Without our intake: stock turn signals, a cone filter breathing hot engine-bay air">Bay air</button>
       <span id="meas"></span>
     </div>
   </main>
@@ -116,6 +155,7 @@ const ctl = new THREE.OrbitControls(cam, cv);
 scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 0.75));
 const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(1, -1.5, 2); scene.add(sun);
 let bed = null, mesh = null, inner = null, showOver = true, cur = null, edgeLines = null;
+const REAL = {on: false, mod: null};
 
 function makeBed(s){
   if(bed) scene.remove(bed);
@@ -176,8 +216,10 @@ function show(buf, name){
   inner.visible = false;                      // shows the cut face (inside surfaces) while sectioning
   scene.add(mesh, inner);
   cur = {name, g, over, shift, path: openPath};
+  if(REAL.on) setReal(false);
   buildExtras(shift); buildMock();
   report(); fitView(); applyCut();
+  if(MOCK && MOCK.S.auto) setCar(true);
   if(document.getElementById('edges').classList.contains('on')) toggleEdges(true);
 }
 
@@ -279,6 +321,7 @@ document.getElementById('ov').onclick = e => {
   if(cur){ cur.over = colorize(cur.g); report(); }
 };
 document.getElementById('fit').onclick = fitView;
+
 
 /* ---- views ---- */
 function view(v){
@@ -475,6 +518,14 @@ const carMat = new THREE.MeshStandardMaterial({color: 0xeeeeea, roughness: .55, 
 function mockUI(){
   const has = !!(SCENE && SCENE.mock), on = !!(MOCK && MOCK.on);
   document.querySelectorAll('.mockui').forEach(e => e.style.display = has && (on || !e.classList.contains('car-only')) ? '' : 'none');
+  const S = has ? SCENE.mock : {}, controls = S.controls;
+  $('car').textContent = S.label || 'Car'; $('mocktitle').textContent = S.title || 'Car mockup';
+  if(Array.isArray(controls)){
+    const nodes = {explode: $('explode').closest('label'), lights: $('lights'), wink: $('wink'), air: $('air'),
+                   throttle: $('thr').closest('label'), dash: $('dash'), hood: $('hood'), risk: $('riskbtn'),
+                   isolate: $('iso'), bay: $('bay')};
+    Object.entries(nodes).forEach(([k, e]) => e.style.display = has && on && controls.includes(k) ? '' : 'none');
+  }
   $('car').classList.toggle('on', on); $('mockbox').style.display = has && on ? '' : 'none';
 }
 function buildMock(){
@@ -485,7 +536,7 @@ function buildMock(){
   root.visible = false; scene.add(root);
   MOCK = {root, items: [], on: false, e: 0, air: false, ang: 0, blinkT: 0, S};
   S.parts.forEach(pt => {
-    const it = {pt, obj: null}; MOCK.items.push(it);
+    const it = {pt, obj: null, off: pt.visible === false}; MOCK.items.push(it);
     fetch(base + pt.file).then(r => r.arrayBuffer()).then(buf => {
       const g = new THREE.STLLoader().parse(buf); g.computeVertexNormals();
       const mat = new THREE.MeshStandardMaterial({color: pt.color, roughness: .6, metalness: .1, transparent: pt.opacity < 1,
@@ -497,7 +548,7 @@ function buildMock(){
         const piv = new THREE.Group(); piv.add(obj); obj = piv; it.home = new THREE.Vector3(...pv.center);
         it.lift = 0; it.goal = 0;
       } else it.home = new THREE.Vector3();
-      it.obj = obj; root.add(obj); placeMock();
+      it.obj = obj; root.add(obj); placeMock(); applyVis();
     });
   });
   // air + exhaust: points riding each stream's centre line, coloured by temperature
@@ -512,7 +563,7 @@ function buildMock(){
     }
     const seeds = [];
     for(let k = 0; k < F.n; k++) seeds.push([Math.random() * n, Math.sqrt(Math.random()), Math.random() * 6.283]);
-    return {fr, col, seeds, rad: F.radius, speed: F.speed, off: 0};
+    return {fr, col, seeds, rad: F.radius, speed: F.speed, off: 0, zone: F.zone, ventEnd: F.vent_end || 0};
   });
   const N = streams.reduce((a, f) => (f.off = a) + f.seeds.length, 0), pg = new THREE.BufferGeometry();
   pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
@@ -524,9 +575,9 @@ function buildMock(){
   $('mockspec').innerHTML = '<table>' + S.spec.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>';
   $('mockparts').innerHTML = '';
   MOCK.items.forEach(it => {
-    const d = document.createElement('div'); d.className = 'mp';
+    const d = document.createElement('div'); d.className = 'mp' + (it.off ? ' off' : '');
     d.innerHTML = `<i style="background:${it.pt.color}"></i>${it.pt.name.replace(/_/g, ' ')}`;
-    d.onclick = () => { if(!it.obj) return; it.obj.visible = !it.obj.visible; d.classList.toggle('off', !it.obj.visible); };
+    d.onclick = () => { it.off = !it.off; d.classList.toggle('off', it.off); applyVis(); };
     $('mockparts').append(d);
   });
   mockUI();
@@ -544,7 +595,7 @@ function placeMock(){                              // explode offsets + the adap
   MOCK.flow.pts.visible = MOCK.air && e < .02;
 }
 function setCar(on){
-  MOCK.on = on; MOCK.root.visible = on; ground.visible = on; if(bed) bed.visible = !on;
+  MOCK.on = on; MOCK.root.visible = on; ground.visible = on && MOCK.S.ground !== false; if(bed) bed.visible = !on;
   if(edgeLines) edgeLines.visible = !on;
   if(on){
     mesh.material.__own = mesh.material.__own || mesh.material; mesh.material = carMat;
@@ -554,16 +605,34 @@ function setCar(on){
   } else {
     if(mesh.material.__own) mesh.material = mesh.material.__own;
     [mesh, inner].forEach(o => { o.matrixAutoUpdate = true; o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.updateMatrix(); });
-    MOCK.air = false; $('air').innerHTML = '&#9654; Air'; fitView();
+    MOCK.air = false; $('air').innerHTML = '&#9654; Air'; MOCK.iso = MOCK.bay = false; applyVis(); fitView();
   }
   placeMock(); mockUI();
 }
 $('car').onclick = () => MOCK && setCar(!MOCK.on);
+function applyVis(){                               // Isolate / Bay air / the parts list's own on-off
+  if(!MOCK) return;
+  const S = MOCK.S, iso = MOCK.iso, bay = MOCK.bay;
+  MOCK.items.forEach(it => { if(it.obj) it.obj.visible = !it.off &&
+    (iso ? S.isolate.includes(it.pt.name) : it.pt.group === 'stock' ? bay : it.pt.group === 'hood' ? !MOCK.noHood : !(bay && S.ours.includes(it.pt.name))); });
+  (MOCK.gauges || []).forEach(g => g.mesh.visible = !iso);
+  ground.visible = MOCK.on && !iso && S.ground !== false; $('risk').style.display = MOCK.on && MOCK.risk ? '' : 'none'; if(mesh) mesh.visible = !(MOCK.on && bay);
+  $('hood').classList.toggle('on', !MOCK.noHood); $('iso').classList.toggle('on', !!iso); $('bay').classList.toggle('on', !!bay);
+}
+$('riskbtn').onclick = () => { if(!MOCK) return; MOCK.risk = !MOCK.risk; $('riskbtn').classList.toggle('on', MOCK.risk); applyVis(); };
+$('hood').onclick = () => { if(!MOCK) return; MOCK.noHood = !MOCK.noHood; applyVis(); };
+$('iso').onclick = () => {
+  if(!MOCK) return;
+  MOCK.iso = !MOCK.iso; if(MOCK.iso) MOCK.bay = false; applyVis();
+  if(!MOCK.iso) return;
+  const box = new THREE.Box3().setFromObject(mesh);   // frame the vent + adapter
+  MOCK.items.forEach(it => it.obj && it.obj.visible && box.expandByObject(it.obj));
+  const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length();
+  ctl.target.copy(c); cam.position.copy(c).add(new THREE.Vector3(.55, .75, .45).multiplyScalar(r * 1.3)); ctl.update();
+};
+$('bay').onclick = () => { if(!MOCK) return; MOCK.bay = !MOCK.bay; if(MOCK.bay) MOCK.iso = false; applyVis(); };
 $('explode').oninput = e => { if(MOCK){ MOCK.e = e.target.value / 1000; placeMock(); } };
 $('air').onclick = () => { if(!MOCK) return; MOCK.air = !MOCK.air; $('air').innerHTML = MOCK.air ? '&#10073;&#10073; Air' : '&#9654; Air'; placeMock(); };
-const mphText = () => { const v = +$('mph').value, psi = .5 * 1.204 * (v * .44704) ** 2 / 6894.76;
-  $('mphv').textContent = `${v} mph · ram +${psi.toFixed(2)} psi`; };
-$('mph').oninput = mphText; mphText();
 function lightsTo(side, up){ MOCK.items.forEach(it => { if(it.pt.hinge && (!side || it.pt.hinge.side === side)) it.goal = up; }); }
 $('lights').onclick = () => { if(!MOCK) return; MOCK.lit = !MOCK.lit; lightsTo(null, +MOCK.lit); $('lights').classList.toggle('on', MOCK.lit); };
 $('wink').onclick = () => {                        // the driver-side one goes up and straight back down
@@ -571,49 +640,56 @@ $('wink').onclick = () => {                        // the driver-side one goes u
   const now = MOCK.lit ? 0 : 1;
   lightsTo('left', now); setTimeout(() => lightsTo('left', 1 - now), 650);
 };
-/* ---- engine sim: throttle + road speed -> rpm, turbo spool, manifold pressure, AFR ---- */
-const ZC = {amb: new THREE.Color('#7fd0ff'), hot: new THREE.Color(), ic: new THREE.Color(), man: new THREE.Color()};
+/* ---- engine sim (parked, out of gear): throttle -> rpm, turbo spool, manifold pressure, AFR ---- */
+const ZC = {amb: new THREE.Color('#7fd0ff'), hot: new THREE.Color(), ic: new THREE.Color(), man: new THREE.Color(), bay: new THREE.Color('#ff8a3a')};
 const C_AMB = new THREE.Color('#7fd0ff'), C_HOT = new THREE.Color('#ff7a1a'), C_WARM = new THREE.Color('#ffd27a'),
-      C_VAC = new THREE.Color('#9b5cff'), C_BOOST = new THREE.Color('#ff2d2d'), C_ATM = new THREE.Color('#e8f4ff');
+      C_VAC = new THREE.Color('#9b5cff'), C_BOOST = new THREE.Color('#ff2d2d'), C_ATM = new THREE.Color('#e8f4ff'),
+      C_BAY = new THREE.Color('#ff8a3a'), C_SCORCH = new THREE.Color('#ff1030');
 function engStep(dt){
   const E = MOCK.S.engine, st = MOCK.eng || (MOCK.eng = {rpm: E.idle, pc: 0, map: -10, afr: 14.7, bov: 0, thr: 0});
-  const thr = +$('thr').value / 100, mph = +$('mph').value, ease = (cur, goal, tau) => cur + (goal - cur) * Math.min(1, dt / tau);
-  const rpmGoal = mph > 0 ? Math.min(E.redline, Math.max(E.idle, mph * E.rpm_per_mph)) : E.idle + thr * (E.redline - E.idle) * .85;
-  st.rpm = ease(st.rpm, rpmGoal, .35);
+  const thr = +$('thr').value / 100, ease = (cur, goal, tau) => cur + (goal - cur) * Math.min(1, dt / tau);
+  // parked (speedo at 0): the revs follow the throttle, idle .. redline
+  st.rpm = ease(st.rpm, E.idle + thr * (E.redline - E.idle), thr * (E.redline - E.idle) + E.idle > st.rpm ? .35 : .6);
   // the turbo only builds boost with load and exhaust flow: barely any in neutral, full from ~3500 rpm wide open
-  const avail = E.boost_psi * Math.min(1, Math.max(0, (st.rpm - 2000) / 1500)) * (mph > 0 ? 1 : .1);
+  const avail = E.boost_psi * Math.min(1, Math.max(0, (st.rpm - 2300) / 1700));
+  // the turbo could make more; the boost controller holds it at boost_psi (a small overshoot as it spools)
   const pcGoal = avail * Math.pow(thr, 1.5);
-  st.pc = ease(st.pc, pcGoal, pcGoal > st.pc ? .8 : .25);              // spools slowly, dumps fast
+  st.pc = Math.min(E.boost_psi * 1.04, ease(st.pc, pcGoal * 1.04, pcGoal > st.pc ? .8 : .25));   // spools slowly, dumps fast
+  if(st.pc > pcGoal && pcGoal >= E.boost_psi * .99) st.pc = ease(st.pc, pcGoal, .6);     // wastegate settles the spike
   if(st.thr - thr > .35 && st.pc > 3) st.bov = 1.2;                    // throttle snapped shut on boost: blow-off valve
   st.bov = Math.max(0, st.bov - dt); st.thr = thr;
   // closed throttle = deep vacuum; opening it lets the manifold up to the charge pressure
   const vac = -10.5 + Math.min(1, st.rpm / E.redline) * 1.5;           // psi, ~-21 inHg at idle
   st.map = ease(st.map, vac + (st.pc - vac) * Math.pow(thr, .45), .1);
-  const decel = thr < .03 && st.rpm > 1400 && mph > 0;
+  const decel = thr < .03 && st.rpm > 1400;                             // off throttle, revs falling: fuel cut
   st.afr = ease(st.afr, decel ? 19.5 : st.map > 0 ? 14.7 - 3.2 * st.map / E.boost_psi : 14.7 + Math.max(0, -st.map - 8) * .15, .2);
   // air colours: blue outside air, orange when compressed (hot), warm after the intercooler,
   // and in the manifold purple for vacuum, white at atmospheric, red under boost
   const b = Math.max(0, st.pc) / E.boost_psi;
-  ZC.hot.copy(C_AMB).lerp(C_HOT, Math.min(1, b * 1.2)); ZC.ic.copy(C_AMB).lerp(C_WARM, Math.min(1, b * .8));
+  if(MOCK.bay){                                     // ~150 F bay air in; compressed it's far hotter, the IC can't get it back
+    ZC.amb.copy(C_BAY); ZC.hot.copy(C_BAY).lerp(C_SCORCH, Math.min(1, b * 1.2)); ZC.ic.copy(C_BAY).lerp(C_SCORCH, Math.min(1, b * .5));
+  } else {
+    ZC.amb.copy(C_AMB); ZC.hot.copy(C_AMB).lerp(C_HOT, Math.min(1, b * 1.2)); ZC.ic.copy(C_AMB).lerp(C_WARM, Math.min(1, b * .8));
+  }
   if(st.map < 0) ZC.man.copy(C_ATM).lerp(C_VAC, Math.min(1, -st.map / 9));
   else ZC.man.copy(C_ATM).lerp(C_BOOST, Math.min(1, st.map / E.boost_psi));
   const p = st.map >= 0 ? `+${st.map.toFixed(1)} psi boost` : `${(-st.map * 2.036).toFixed(0)} inHg vacuum`;
-  $('engv').textContent = `${Math.round(st.rpm / 50) * 50} rpm · ${p} · AFR ${st.afr.toFixed(1)}${st.bov > 0 ? ' · pssh!' : ''}`;
+  $('engv').textContent = `${Math.round(st.rpm / 50) * 50} rpm · ${p} · AFR ${st.afr.toFixed(1)} · in ${MOCK.bay ? '~150' : '~75'}°F${st.bov > 0 ? ' · pssh!' : ''}`;
   MOCK.items.forEach(({pt, obj}) => {                                   // throttle plate: closed .. 80 deg wide open
     if(pt.throttle && obj) obj.quaternion.setFromAxisAngle(new THREE.Vector3(...pt.throttle.axis), thr * 1.4);
   });
-  if((MOCK.gT = (MOCK.gT || 0) + dt) > .05){ MOCK.gT = 0; drawGauges(st, mph); }
+  if((MOCK.gT = (MOCK.gT || 0) + dt) > .05){ MOCK.gT = 0; drawGauges(st); }
   return st;
 }
 function makeGauges(E, root){                      // a canvas texture on a disc for each dial
   MOCK.gauges = E.gauges.map(g => {
-    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
-    const tex = new THREE.CanvasTexture(cv), m = new THREE.Mesh(new THREE.CircleGeometry(g.r, 48),
+    const cv = document.createElement('canvas'); cv.height = 256; cv.width = g.w ? Math.round(256 * g.w / g.h) : 256;
+    const tex = new THREE.CanvasTexture(cv), m = new THREE.Mesh(g.w ? new THREE.PlaneGeometry(g.w, g.h) : new THREE.CircleGeometry(g.r, 48),
       new THREE.MeshBasicMaterial({map: tex}));
     const n = new THREE.Vector3(...g.normal), up = new THREE.Vector3(...g.up), rt = new THREE.Vector3().crossVectors(up, n);
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(rt, up, n)); m.position.set(...g.center);
     root.add(m);
-    return {g, cv, tex};
+    return {g, cv, tex, mesh: m};
   });
 }
 function dial(c, v, lo, hi, ticks, label, txt, red){   // needle sweeps 270 deg, lo at bottom-left
@@ -631,14 +707,57 @@ function dial(c, v, lo, hi, ticks, label, txt, red){   // needle sweeps 270 deg,
   c.strokeStyle = '#ff6a00'; c.lineWidth = 5; c.beginPath(); c.moveTo(cx, cx); c.lineTo(cx + Math.cos(q) * 104, cx + Math.sin(q) * 104); c.stroke();
   c.fillStyle = '#333'; c.beginPath(); c.arc(cx, cx, 12, 0, 7); c.fill();
 }
-function drawGauges(st, mph){
+function miniDial(c, x, y, R, v, lo, hi, label, txt, red){   // small dial for the spec screen
+  const a = t => Math.PI * .75 + t * Math.PI * 1.5, f = t => Math.min(1, Math.max(0, (t - lo) / (hi - lo)));
+  c.strokeStyle = '#2c3a44'; c.lineWidth = 5; c.beginPath(); c.arc(x, y, R, a(0), a(1)); c.stroke();
+  c.strokeStyle = red && v >= red ? '#ff3b30' : '#35c6f4'; c.beginPath(); c.arc(x, y, R, a(0), a(f(v))); c.stroke();
+  c.fillStyle = '#f2f2f2'; c.font = `bold ${R * .55}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(txt, x, y); c.fillStyle = '#8fa3b0'; c.font = `${R * .38}px sans-serif`; c.fillText(label, x, y + R * .85);
+}
+function drawRisk(st){
+  // rough knock / blow-up odds on a stock-internals B6 (9.4:1 on pump gas): cylinder pressure (boost),
+  // charge temp (IAT, lags like real heat soak), lean AFR under boost, and lugging (low rpm, high load)
+  const load = Math.max(0, st.map) / MOCK.S.engine.boost_psi;
+  const parts = [['boost', 2.6 * load ** 1.5], ['hot intake air', Math.max(0, st.iat - 100) / 45 * load],
+                 ['lean', Math.max(0, st.afr - 11.8) * .8 * load], ['low rpm under boost', load * Math.max(0, (4000 - st.rpm) / 2000) * .6]];
+  const x = parts.reduce((a, [, v]) => a + v, 0), sig = v => 1 / (1 + Math.exp(-1.5 * (v - 3)));
+  const r = Math.max(0, (sig(x) - sig(0)) / (1 - sig(0))), pc = Math.round(r * 100);
+  const col = r < .25 ? '#3ccf6e' : r < .6 ? '#ffc23a' : r < .85 ? '#ff7a1a' : '#ff2d2d';
+  $('riskv').textContent = `${pc}%`; $('riskv').style.color = col;
+  $('riskbar').style.width = `${Math.max(2, pc)}%`; $('riskbar').style.background = col;
+  const top = parts.filter(([, v]) => v > .25).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  $('riskwhy').textContent = `IAT ${st.iat.toFixed(0)}°F · ` + (top.length ? 'from ' + top.join(', ') : 'safe: no real cylinder pressure');
+}
+function drawGauges(st){
+  // slow-moving engine temps etc. for the spec screen, driven by load
+  const load = Math.max(0, (st.map + 10.5) / (10.5 + MOCK.S.engine.boost_psi)), ez = (k, goal, tau) => st[k] = st[k] === undefined ? goal : st[k] + (goal - st[k]) * Math.min(1, .05 / tau);
+  ez('clt', 190 + load * 18, 8); ez('oilT', 205 + load * 45, 15); ez('oilP', Math.min(75, 18 + st.rpm / 110), .4);
+  ez('iat', (MOCK.bay ? 150 : 78) + Math.max(0, st.pc) * (MOCK.bay ? 4.5 : 2.6), 3); ez('egt', 850 + load * 750, 1.2); ez('volt', 14.1 - load * .2, 2);
+  if(MOCK.risk) drawRisk(st);
   (MOCK.gauges || []).forEach(({g, cv, tex}) => {
     const c = cv.getContext('2d');
     if(g.kind === 'tach') dial(c, st.rpm / 1000, 0, 8, [0, 1, 2, 3, 4, 5, 6, 7, 8], 'x1000 r/min', '', [7.2, 8]);
-    else if(g.kind === 'speedo') dial(c, mph, 0, 140, [0, 20, 40, 60, 80, 100, 120, 140], 'MPH', '');
-    else if(g.kind === 'boost') dial(c, st.map, -15, 15, [-15, -10, -5, 0, 5, 10, 15], 'BOOST psi',
+    else if(g.kind === 'speedo') dial(c, 0, 0, 140, [0, 20, 40, 60, 80, 100, 120, 140], 'MPH', '');
+    else if(g.kind === 'boost') dial(c, st.map, -15, 25, [-15, -10, -5, 0, 5, 10, 15, 20, 25], 'BOOST',
       st.map >= 0 ? `+${st.map.toFixed(1)}` : `${(-st.map * 2.036).toFixed(0)} inHg`);
     else if(g.kind === 'afr') dial(c, st.afr, 10, 20, [10, 12, 14, 16, 18, 20], 'AFR', st.afr.toFixed(1), [10, 11]);
+    else if(g.kind === 'radio'){
+      const W = cv.width, H = cv.height;
+      c.fillStyle = '#16181b'; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#0a1a10'; c.fillRect(W * .25, H * .2, W * .5, H * .45);
+      c.fillStyle = '#7dff9a'; c.font = 'bold 64px monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('FM 101.1', W / 2, H * .43);
+      c.fillStyle = '#555'; [.1, .9].forEach(k => { c.beginPath(); c.arc(W * k, H * .42, H * .22, 0, 7); c.fill(); });
+      c.fillStyle = '#3a3d42'; for(let i = 0; i < 6; i++) c.fillRect(W * (.27 + i * .08), H * .74, W * .06, H * .14);
+    }
+    else if(g.kind === 'screen'){
+      const W = cv.width, H = cv.height, cw = W / 3, rh = H / 2;
+      c.fillStyle = '#050a0e'; c.fillRect(0, 0, W, H);
+      [['COOLANT °F', st.clt, 150, 240, st.clt.toFixed(0), 225], ['OIL °F', st.oilT, 150, 280, st.oilT.toFixed(0), 260],
+       ['OIL PSI', st.oilP, 0, 100, st.oilP.toFixed(0)], ['IAT °F', st.iat, 50, 200, st.iat.toFixed(0), 150],
+       ['EGT °F', st.egt, 600, 1800, st.egt.toFixed(0), 1600], ['VOLTS', st.volt, 11, 15, st.volt.toFixed(1)]]
+        .forEach(([l, v, lo, hi, txt, red], i) => miniDial(c, cw * (i % 3 + .5), rh * (Math.floor(i / 3) + .45), Math.min(cw, rh) * .36, v, lo, hi, l, txt, red));
+    }
     tex.needsUpdate = true;
   });
 }
@@ -653,8 +772,8 @@ function stepMock(dt){
   });
   const eng = MOCK.S.engine ? engStep(dt) : null;
   if(!MOCK.air) return;
-  const mph = +$('mph').value, F = MOCK.flow;
-  MOCK.ang += dt * (eng ? 4 + eng.rpm / 250 + Math.max(0, eng.pc) * 6 : 4 + mph * .9);   // turbo shaft (just for show)
+  const F = MOCK.flow;
+  MOCK.ang += dt * (eng ? 4 + eng.rpm / 250 + Math.max(0, eng.pc) * 6 : 4);   // turbo shaft (just for show)
   MOCK.blinkT += dt;
   MOCK.items.forEach(({pt, obj}) => {
     if(pt.spin && obj) obj.quaternion.setFromAxisAngle(new THREE.Vector3(...pt.spin.axis), MOCK.ang);
@@ -665,12 +784,16 @@ function stepMock(dt){
   // with the sim: speed follows mass flow (rpm x absolute pressure), density follows pressure
   const abs = p => (14.7 + p) / (14.7 + (eng ? MOCK.S.engine.boost_psi : 0));
   const flow = eng ? (eng.rpm / MOCK.S.engine.redline) * (14.7 + eng.map) / 14.7 : 0;
-  const step = dt * (eng ? 90 + flow * 1500 : 60 + mph * 9) / 5;   // path samples are 5 mm apart
-  const dens = {amb: abs(0), hot: abs(eng ? eng.pc : 0), ic: abs(eng ? eng.pc : 0), man: abs(eng ? eng.map : 0)};
+  const step = dt * (eng ? 90 + flow * 1500 : 60) / 5;   // path samples are 5 mm apart
+  const thin = MOCK.bay ? .8 : 1;
+  const dens = {amb: abs(0) * thin, hot: abs(eng ? eng.pc : 0) * thin, ic: abs(eng ? eng.pc : 0) * thin, man: abs(eng ? eng.map : 0), bay: abs(0) * thin};
+  MOCK.t = (MOCK.t || 0) + dt;
   F.streams.forEach(st => st.seeds.forEach((sd, j) => {
-    const n = st.fr.length, k = st.off + j;
-    sd[0] = (sd[0] + step * st.speed * (.8 + .4 * (j % 5) / 4)) % n;
-    const i = Math.floor(sd[0]), [c, u, v] = st.fr[i], r = st.rad[i] * sd[1];
+    const n = st.fr.length, k = st.off + j, struggle = MOCK.bay && (st.zone === 'bay' || (st.ventEnd && sd[0] < st.ventEnd + 40));
+    const sp = struggle ? .6 * Math.max(.15, Math.sin(MOCK.t * 3 + j)) : MOCK.bay ? .85 : 1;   // stop-start, labouring
+    sd[0] = (sd[0] + step * st.speed * sp * (.8 + .4 * (j % 5) / 4)) % n;
+    if(MOCK.bay && sd[0] < st.ventEnd) sd[0] = st.ventEnd + Math.random() * 10;      // no vent or hose: starts at the turbo
+    const i = Math.floor(sd[0]), [c, u, v] = st.fr[i], r = st.rad[i] * sd[1] * (struggle ? 1 + .35 * Math.sin(MOCK.t * 9 + j * 2.3) : 1);
     pos[k * 3] = c.x + (u.x * Math.cos(sd[2]) + v.x * Math.sin(sd[2])) * r;
     pos[k * 3 + 1] = c.y + (u.y * Math.cos(sd[2]) + v.y * Math.sin(sd[2])) * r;
     pos[k * 3 + 2] = c.z + (u.z * Math.cos(sd[2]) + v.z * Math.sin(sd[2])) * r;
@@ -679,10 +802,92 @@ function stepMock(dt){
       if(eng && (j * .618) % 1 > dens[cl]) pos[k * 3 + 2] = -1e5;
       cl = ZC[cl];
     }
+    if(st.zone === 'bay' && !MOCK.bay) pos[k * 3 + 2] = -1e5;      // bay streams only in Bay air
     cols[k * 3] = cl.r; cols[k * 3 + 1] = cl.g; cols[k * 3 + 2] = cl.b;
   }));
   F.pts.geometry.attributes.position.needsUpdate = F.pts.geometry.attributes.color.needsUpdate = true;
 }
+
+/* ---- render & print: plastic colour, Realistic (path traced), AR, Blender, slicer (shared/studio.py) ---- */
+const PLASTICS = [['#c8d4dc', 'white'], ['#8a9399', 'grey'], ['#1d1f22', 'black'], ['#1f5fbf', 'blue'],
+                  ['#c12e1f', 'red'], ['#2e8b3e', 'green'], ['#e8701a', 'orange'], ['#e8c41a', 'yellow']];
+const plastic = {color: PLASTICS[0][0], glossy: false};
+PLASTICS.forEach(([c, n]) => {
+  const b = document.createElement('button'); b.className = 'sw' + (c === plastic.color ? ' on' : ''); b.style.background = c; b.title = n;
+  b.onclick = () => { plastic.color = c; document.querySelectorAll('.sw').forEach(x => x.classList.toggle('on', x === b));
+                      if(REAL.on) setReal(true); arColor(); };
+  $('swatches').append(b);
+});
+$('gloss').onclick = () => { plastic.glossy = !plastic.glossy; $('gloss').textContent = plastic.glossy ? 'PETG' : 'PLA';
+                             $('gloss').classList.toggle('on', plastic.glossy); if(REAL.on) setReal(true); };
+async function setReal(on){
+  REAL.on = on; $('real').classList.toggle('on', on);
+  if(!REAL.mod) REAL.mod = await import('/_shared/realistic.js');
+  if(!on){ REAL.mod.stop(); $('real').textContent = 'Realistic'; return; }
+  if(!mesh){ REAL.on = false; $('real').classList.remove('on'); return; }
+  REAL.mod.start(window.__viewer, plastic, n => $('real').textContent = n < 0 ? 'Realistic: compiling…' : 'Realistic: ' + n);
+}
+$('real').onclick = () => setReal(!REAL.on);
+document.getElementById('bar').addEventListener('click', e => {     // dirt, car, hood…: re-snapshot the scene
+  if(REAL.on && e.target.tagName === 'BUTTON' && !e.target.dataset.v) setTimeout(() => setReal(true), 50);
+});
+
+function overlay(el){
+  $('ovl').querySelectorAll(':scope > :not(#ovl-x)').forEach(x => x.remove());
+  if(el){ $('ovl').append(el); $('ovl').style.display = 'block'; } else $('ovl').style.display = 'none';
+}
+$('ovl-x').onclick = () => overlay(null);
+function arColor(){
+  const mv = $('ovl').querySelector('model-viewer'), m = mv && mv.model && mv.model.materials[0];
+  if(m) m.pbrMetallicRoughness.setBaseColorFactor(plastic.color);
+}
+$('ar').onclick = () => {
+  if(!cur) return;
+  if(!customElements.get('model-viewer')){
+    const sc = document.createElement('script'); sc.type = 'module';
+    sc.src = 'https://cdn.jsdelivr.net/npm/@google/model-viewer@4.4.0/dist/model-viewer.min.js'; document.head.append(sc);
+  }
+  const mv = document.createElement('model-viewer');
+  ['camera-controls', 'auto-rotate'].forEach(a => mv.setAttribute(a, ''));
+  mv.setAttribute('ar', ''); mv.setAttribute('ar-modes', 'webxr scene-viewer quick-look');
+  mv.setAttribute('shadow-intensity', '1'); mv.setAttribute('environment-image', 'neutral');
+  mv.addEventListener('load', arColor);
+  mv.src = '/glb' + cur.path;
+  overlay(mv);
+};
+
+async function studioJob(path, body, label){
+  const btns = document.querySelectorAll('#studio-row button'), out = $('studio-out'), t0 = Date.now();
+  btns.forEach(b => b.disabled = true);
+  const tick = setInterval(() => out.textContent = `${label}… ${Math.round((Date.now() - t0) / 1000)} s`, 500);
+  try {
+    const r = await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const j = await r.json();
+    if(!r.ok || j.error) throw new Error(j.error || r.statusText);
+    return j;
+  } catch(e){ out.innerHTML = `<span class="bad">${label} failed:</span> ${e.message.slice(0, 300)}`; }
+  finally { clearInterval(tick); btns.forEach(b => b.disabled = false); }
+}
+async function blender(turntable){
+  if(!cur) return;
+  const j = await studioJob('/api/studio/render', {stl: cur.path, turntable, color: plastic.color},
+                            turntable ? 'Rendering turntable' : 'Rendering photo');
+  if(!j) return;
+  let el;
+  if(turntable){ el = document.createElement('video'); el.autoplay = el.loop = el.muted = el.controls = el.playsInline = true; }
+  else el = document.createElement('img');
+  el.src = j.url; overlay(el);
+  $('studio-out').innerHTML = `Blender ${turntable ? 'turntable' : 'photo'} <span class="ok">done</span> `
+    + `<a href="${j.url}" download>${turntable ? 'MP4' : 'PNG'}</a>`;
+}
+$('photo').onclick = () => blender(false);
+$('turn').onclick = () => blender(true);
+$('slice').onclick = async () => {
+  if(!cur) return;
+  const j = await studioJob('/api/studio/slice', {stl: cur.path}, 'Slicing');
+  if(j) $('studio-out').innerHTML = `<b style="color:var(--fg)">${j.time}</b> · <b style="color:var(--fg)">${j.grams.toFixed(0)} g</b>`
+    + ` · ${j.layers} layers <a href="${j.file}" download>3MF</a><br>${j.printer}`;
+};
 
 makeBed(256); resize(); fitView();
 let lastT = performance.now();
@@ -695,7 +900,8 @@ let lastT = performance.now();
     if(snake.head >= snake.total){ snake.playing = false; $('snake').innerHTML = '&#8635; Snake'; }   // rests on the hill
   }
   stepMock(dt);
-  if(ctl.autoRotate) ctl.update(); renderer.render(scene, cam);
+  if(ctl.autoRotate) ctl.update();
+  if(!REAL.on) renderer.render(scene, cam);            // Realistic draws its own canvas on top
 })();
 </script>
 </body>

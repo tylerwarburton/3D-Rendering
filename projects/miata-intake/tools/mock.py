@@ -29,14 +29,18 @@ import params as P
 HERE = os.path.dirname(os.path.abspath(__file__))
 SIGNAL_STL = os.path.join(HERE, "..", "source", "false_turn_signal.stl")
 MPH = 0.44704
+BOOST_PSI = 16.0                                   # Tyler: makes well over 20 psi, boost-controlled to 16
 RHO = 1.204                                        # kg/m3, 20 C sea level
 
 # ---------------------------------------------------------------- body shape
 W_MAX = 837.0                                      # half of the 1675 mm width
-TOP = [(40, 520), (0, 560), (-60, 585), (-300, 612), (-600, 650), (-1000, 700), (-1350, 750), (-1450, 790),
+TOP0 = [(40, 520), (0, 560), (-60, 585), (-300, 612), (-600, 650), (-1000, 700), (-1350, 750)]   # hood as first drawn (sets the vent height)
+HOOD_RAISE = [(0, 0), (-60, 15), (-300, 25), (-1350, 25), (-1450, 0)]   # Tyler: the hood sits a bit higher
+TOP = [(x, z + float(np.interp(-x, [-x for x, _ in HOOD_RAISE], [d for _, d in HOOD_RAISE]))) for x, z in TOP0] + [(-1450, 790),
        (-2900, 800), (-3300, 840), (-3800, 830), (-3990, 720)]
 # fender crowns standing above the hood / deck (front wings, rear haunches)
-CROWN = [(0, 0), (-250, 30), (-500, 75), (-1150, 75), (-1450, 12), (-2800, 12), (-3050, 60), (-3600, 60), (-3850, 0)]
+CROWN = [(-1450, 0), (-2800, 12), (-3050, 60), (-3600, 60), (-3850, 0)]   # rear haunches only
+HOOD_CROWN = [(0, 0), (-150, 30), (-1250, 30), (-1450, 0)]   # Tyler: the hood is highest in the centre
 BOT = [(40, 270), (0, 240), (-200, 200), (-400, 175), (-3600, 165), (-3990, 280)]
 AXLES = (-800.0, -3065.0)                          # 2265 mm wheelbase
 WHEEL_R, WHEEL_Z, TRACK = 290.0, 290.0, 1405.0
@@ -167,14 +171,14 @@ def half_width(x):
 
 
 HL_FRONT = nose_x(SIGNAL_Y) - INCH                 # pop-up headlights: front edge 1 in behind the vent face
-HL_LEN = 250.0
+HL_DEPTH = 100.0                                   # the box under the lid
+HL_LEN = 190.0                                     # pop-up lid length = width = its face's side (Tyler: smaller again; was 210)
 WHEEL_C = np.array([-1850.0, 340.0, 700.0])        # steering wheel centre (driver: +y, LHD)
 DASH_X = -1780.0                                   # dash's rear face (toward the driver)
 HL_BACK = 2 * INCH                                 # Tyler: headlights 2 in further back than the vent rule put them
-HL_PIVOT = (0.3, 60.0)                             # roll-up pivot: 0.3 of the way forward, 60 mm under the hood
 VENT_DROP = 2 * INCH                               # Tyler: the vents sit lower than the 1 in rule put them (guess, 2026-10-11)
 VENT_H = 57.3                                      # the vent's height
-SIGNAL_Z = interp(TOP, HL_FRONT) - INCH - VENT_DROP - VENT_H / 2   # vent top 1 in (+ VENT_DROP) below the pop-up
+SIGNAL_Z = interp(TOP0, HL_FRONT) - INCH - VENT_DROP - VENT_H / 2   # vent top 1 in (+ VENT_DROP) below the pop-up
 
 
 def signal_housing():
@@ -235,10 +239,16 @@ OUTLET_Z = 138.0                                   # adapter outlet face, adapte
 # ---------------------------------------------------------------- engine bay layout
 CYL_X = (-600.0, -720.0, -840.0, -960.0)           # inline four, longitudinal
 TURBO_AX = np.array([0.0, 420.0, 420.0])           # turbo shaft runs along x at this y, z
+TURBO_SCALE = 1.2                                   # Tyler: a bigger turbo (scroll + turbine housings)
 TURBO_DX = -200.0                                  # turbo moved back: turbine centred on the engine (Tyler)
 TURBO_IN = np.array([-400.0 + TURBO_DX, 420.0, 420.0])   # compressor inlet face (centre), faces forward
 IC = dict(x0=-310.0, x1=-235.0, y=330.0, z0=250.0, z1=420.0)   # intercooler core, ~75 mm gap ahead of the radiator
 THROTTLE = np.array([-560.0, -290.0, 510.0])       # throttle body (passenger side), faces forward
+# hood / bay opening (Tyler: the bay is open in front of, over and behind the
+# front wheels): between the pop-ups up front, out to the fender tops behind them
+HOOD = [(-1420.0, -80.0, 410.0),                   # x0, x1, half width: cowl to just behind the nose, between the pop-ups
+        (-1420.0, -480.0, 640.0)]                  # behind the pop-ups' swing, over the front wheels
+FILTER_LEN = 180.0                                 # "Bay air" cone filter, forward of the turbo inlet
 
 
 def to_car(a):
@@ -395,7 +405,8 @@ def body():
             H *= max(0.35, s) ** 0.5                  # the tail tapers in height too
         y, z = max(W, 4.0) * sgnpow(np.cos(a), 2 / 4.5), zc + H * sgnpow(np.sin(a), 2 / 4.5)
         up = np.clip((z - zc) / max(H, 1), 0, 1)
-        z = z + interp(CROWN, x) * np.exp(-((np.abs(y) / W_MAX - 0.8) / 0.15) ** 2) * up   # fender crowns
+        z = z + interp(CROWN, x) * np.exp(-((np.abs(y) / W_MAX - 0.8) / 0.15) ** 2) * up   # rear haunches
+        z = z + interp(HOOD_CROWN, x) * np.exp(-(y / (0.55 * W_MAX)) ** 2) * up   # hood crowned in the middle
         rings.append(np.stack([np.full(n, x), y, z], 1))
     V = np.concatenate(rings + [rings[0].mean(0, keepdims=True), rings[-1].mean(0, keepdims=True)])
     F, m = [], len(rings)
@@ -413,7 +424,7 @@ def body():
     for ax in AXLES:
         for s in (1, -1):
             cuts.append(cyl((ax, s * 560, WHEEL_Z), (ax, s * 1000, WHEEL_Z), WHEEL_R + 30, 64))
-    cuts.append(bx(-1520, -2780, -650, 650, 640, 1400))            # cockpit
+    cuts.append(bx(-1520, -2780, -650, 650, 260, 1400))            # cockpit, down to the floor pan
     return trimesh.boolean.difference([shell, *cuts], engine="manifold")
 
 
@@ -428,33 +439,39 @@ def parts():
     """name -> (mesh, colour, opacity, explode vector, group)"""
     out = {}
     out["body"] = (body(), "#c8102e", .38, (0, 0, 900), "body")
-    # pop-up headlights: side view an equilateral triangle - the lid on top,
-    # curved to the hood, and two faces meeting below it at 60 deg. The lamp
-    # is on the front face; the unit rolls up about a pivot under the lid
-    # (its back sinks into the car) until that face stands vertical.
+    # pop-up headlights, like a real NA: a box under a lid curved to the
+    # hood, the round lens on its underside facing down when closed. It
+    # flips 90 deg on a hinge at its back and stands up like a box - lens
+    # vertical facing forward, lid at the back (Tyler, 2026-10-11).
     body_m = out["body"][0]
     x1 = HL_FRONT - HL_BACK
     x0 = x1 - HL_LEN
-    xs = np.linspace(x0, x1, 27)                                     # odd: the apex is a sample
-    tan60 = math.tan(math.radians(60))
+    xs = np.linspace(x0, x1, 26)
     gaps = []
     for s, nm in ((1, "headlight_left"), (-1, "headlight_right")):
-        y0, y1 = sorted((s * 400, s * 640))
+        y0, y1 = sorted((s * (520 - HL_LEN / 2), s * (520 + HL_LEN / 2)))   # square lid and lens face
         ys = np.linspace(y0, y1, 13)
         top = hood_z(body_m, xs, ys) + 3
-        bot = top - np.maximum(3.0, np.minimum(xs - x0, x1 - xs) * tan60)[:, None]
-        out[nm] = (slab(xs, ys, top, bot), "#c8102e", 1, (0, 0, 900), "body")
-        # lamp: centred on the front face
-        n = np.array([math.sin(math.radians(60)), 0.0, -math.cos(math.radians(60))])   # front face's outward normal
-        c = np.array([x1 - HL_LEN / 4, (y0 + y1) / 2, top[-1, len(ys) // 2] - HL_LEN / 4 * tan60])
-        out[nm + "_lamp"] = (cyl(c - n * 1, c + n * 4, 80, 40), "#fff6d8", 1, (0, 0, 900), "body")
+        out[nm] = (slab(xs, ys, top, top - HL_DEPTH), "#c8102e", 1, (0, 0, 900), "body")
+        c = np.array([(x0 + x1) / 2, (y0 + y1) / 2, top[len(xs) // 2, len(ys) // 2] - HL_DEPTH])
+        out[nm + "_lamp"] = (cyl(c + [0, 0, 1], c - [0, 0, 4], HL_LEN / 2 - 1, 48), "#fff6d8", 1, (0, 0, 900), "body")
         gx = np.linspace(x0 - 5, x1 + 5, 26)
         gy = np.linspace(y0 - 5, y1 + 5, 13)
         g = hood_z(body_m, gx, gy)
         gaps.append(slab(gx, gy, g - 1, g - 7))                     # dark outline just under the hood skin
     out["headlight_gaps"] = (trimesh.util.concatenate(gaps), "#111111", 1, (0, 0, 900), "body")
-    px = x0 + HL_PIVOT[0] * HL_LEN
-    HINGE[:] = [px, 0.0, interp(TOP, px) - HL_PIVOT[1]]
+    # the hood: its own panel (the Hood button takes it off; the pop-ups stay),
+    # the bay opened up under it down to an undertray
+    (x0, x1, w0), (_, x2, w1) = HOOD
+    panels = []
+    for xa, xb, ya, yb in [(x0, x1, -w0, w0), (x0, x2, w0, w1), (x0, x2, -w1, -w0)]:   # middle + the two wide sides
+        hx, hy = np.linspace(xa, xb, 60), np.linspace(ya, yb, 31 if ya == -w0 else 10)
+        top = hood_z(body_m, hx, hy)
+        panels.append(slab(hx, hy, top, top - 4))
+    out["hood"] = (trimesh.util.concatenate(panels), "#c8102e", .38, (0, 0, 900), "hood")
+    out["body"] = (trimesh.boolean.difference([body_m, *[bx(a, b, -w, w, 240, 2000) for a, b, w in HOOD]], engine="manifold"),
+                   *out["body"][1:])
+    HINGE[:] = [x0, 0.0, hood_z(body_m, [x0], [520.0])[0, 0] + 3]   # along the lid's back edge
     mouth = cyl((3, 0, 0), (-10, 0, 0), 1, 64)                     # the oval mouth in the nose
     mouth.apply_scale((1, 300, 55))
     mouth.apply_translation((nose_x(300), 0, 330))
@@ -467,10 +484,19 @@ def parts():
     glass = trimesh.Trimesh([(-1430, 640, 795), (-1430, -640, 795), (-1785, -600, 1205), (-1785, 600, 1205)],
                             [(0, 1, 2), (0, 2, 3)])
     out["windshield_glass"] = (glass, "#9fd3e0", .25, (0, 0, 900), "body")
-    seats = [b for s in (1, -1) for b in (bx(-2150, -2550, s * 120, s * 520, 300, 420),
-                                          bx(-2480, -2600, s * 120, s * 520, 380, 950))]
-    tunnel = bx(-1790, -2300, -95, 95, 300, 500)
-    out["interior"] = (trimesh.util.concatenate([*seats, tunnel]), "#202020", 1, (0, 0, 900), "body")
+    seats = []
+    for s in (1, -1):                                                # cushion, reclined back, headrest
+        seats.append(bx(-2130, -2560, s * 140, s * 500, 280, 380))
+        back = bx(-2500, -2590, s * 140, s * 500, 370, 900)
+        back.apply_transform(trimesh.transformations.rotation_matrix(math.radians(-14), [0, 1, 0], [-2545, 0, 380]))
+        head = bx(-2640, -2700, s * 230, s * 410, 900, 1020)
+        seats += [back, head]
+    out["seats"] = (trimesh.util.concatenate(seats), "#1d1d1f", 1, (0, 0, 900), "body")
+    seats = [bx(-1530, -2770, -645, 645, 258, 268),                  # carpet over the floor pan
+             *[bx(-1800, -2700, s * 640, s * 630, 300, 640) for s in (1, -1)],   # door cards
+             bx(-2700, -2770, -645, 645, 268, 720)]                  # rear bulkhead
+    tunnel = bx(-1790, -2500, -95, 95, 260, 480)
+    out["interior"] = (trimesh.util.concatenate([*seats, tunnel]), "#33302d", 1, (0, 0, 900), "body")
     # steering wheel: faces the driver, its column running forward and down into the dash
     a = np.array([-math.cos(math.radians(25)), 0, math.sin(math.radians(25))])   # wheel axis, toward the driver
     e1, e2 = np.array([0, 1.0, 0]), np.cross(a, [0, 1.0, 0])
@@ -541,15 +567,27 @@ def parts():
     clamps = trimesh.util.concatenate([ring(o + _Z * 6, o + _Z * 18, r_hose, r_hose + 2.5),
                                        ring(e + [18, 0, 0], e + [6, 0, 0], r_hose, r_hose + 2.5)])
     out["hose_clamps"] = (clamps, "#c8ccd0", 1, (0, 0, 220), "intake")
+    # ---- "Bay air" (without our intake): stock turn signals in both corners,
+    # and a cone filter on the turbo inlet breathing engine-bay air
+    lamp = trimesh.convex.convex_hull(HOUSING.vertices[HOUSING.vertices[:, 0] > -115])
+    lamp_r = lamp.copy()
+    lamp_r.apply_transform(np.diag([1, -1, 1, 1.0]))
+    lamp_r.invert()
+    out["stock_turn_signals"] = (trimesh.util.concatenate([lamp, lamp_r]), "#ff9d1a", 1, (600, 0, 0), "stock")
+    fil = cyl(TURBO_IN + [-25, 0, 0], TURBO_IN + [FILTER_LEN, 0, 0], 1, 28)
+    t = (fil.vertices[:, 0] - TURBO_IN[0] + 25) / (FILTER_LEN + 25)     # r 40 on the inlet, 75 at the front
+    fil.vertices[:, 1:] = TURBO_IN[1:] + (fil.vertices[:, 1:] - TURBO_IN[1:]) * (40 + 35 * t)[:, None]
+    out["cone_filter"] = (fil, "#8c1c1c", 1, (0, 0, 0), "stock")
     # turbo: compressor (cold side, inlet forward), centre section, turbine (hot side)
     tb = (-180, 120, 0)
+    ts = TURBO_SCALE                                                # housings sized up; the inlet still takes the hose
     out["compressor_housing"] = (trimesh.util.concatenate([
-        ring(tx(-400), tx(-460), 32, 37), ring(tx(-460), tx(-515), 37, 82), cyl(tx(-505), tx(-518), 82)]),
+        ring(tx(-400), tx(-460), 32, 37), ring(tx(-460), tx(-515), 37, 82 * ts), cyl(tx(-505), tx(-518), 82 * ts)]),
         "#b9bec4", .4, tb, "turbo")
-    out["turbine_housing"] = (trimesh.util.concatenate([cyl(tx(-518), tx(-555), 38), cyl(tx(-555), tx(-625), 76)]),
+    out["turbine_housing"] = (trimesh.util.concatenate([cyl(tx(-518), tx(-555), 38 * ts), cyl(tx(-555), tx(-625), 76 * ts)]),
                               "#5a4a3e", .5, tb, "turbo")
     for nm, x0, x1, r, col, ex in (("compressor_wheel", -462, -420, 31, "#e2e5e8", (-60, 120, 0)),
-                                   ("turbine_wheel", -615, -565, 34, "#9a8a7a", (-300, 120, 0))):
+                                   ("turbine_wheel", -615, -565, 34 * ts, "#9a8a7a", (-300, 120, 0))):
         bl = [cyl(tx(x0), tx(x1), 10, 24)]
         for k in range(10):
             b = bx(x0 + TURBO_DX, x1 + TURBO_DX, -1.2, 1.2, 10, r)
@@ -561,7 +599,7 @@ def parts():
     # stub (compressor outlet, intercooler necks, throttle body) under a
     # silicone coupler, so every joint visibly meets
     r_cp = 30.0
-    co = tx(-488) + [0, 0, -60]                                     # compressor outlet stub, down out of the scroll
+    co = tx(-488) + [0, 0, -70]                                     # compressor outlet stub, down out of the scroll
     co_end = co + [0, 0, -70]
     ic_in = np.array([(IC["x0"] + IC["x1"]) / 2, IC["y"] + 45, (IC["z0"] + IC["z1"]) / 2])   # tank outer face
     ic_out = ic_in * [1, -1, 1]
@@ -664,8 +702,21 @@ def flows(g):
     rad[:int(entry / 5)] = 22 + 90 * (1 - np.arange(int(entry / 5)) / (entry / 5))
     rad[k_ic:k_cool] = 120.0                                       # spreads through the core
     intake = dict(path=np.round(pts, 1).tolist(), radius=np.round(rad, 1).tolist(), n=550, speed=1.0,
-                  colors=[[0, "$amb"], [k_wheel + 12, "$hot"], [k_cool, "$ic"]], zone="pre")
+                  colors=[[0, "$amb"], [k_wheel + 12, "$hot"], [k_cool, "$ic"]], zone="pre", vent_end=k_wheel)
     out = [intake]
+    # "Bay air" (no vent): the cone filter breathes air the radiator and the
+    # exhaust already heated, wandering in from around the bay
+    rng = np.random.default_rng(7)
+    for s0 in [(-470, 150, 520), (-470, 280, 330), (-700, 300, 560), (-850, 330, 480),
+               (-560, 560, 300), (-480, 520, 560), (-640, 200, 300), (-760, 520, 380)]:
+        s0 = np.array(s0, float)
+        a, q = rng.uniform(0, 2 * math.pi), rng.uniform(.2, 1)
+        d = np.array([0, math.cos(a), math.sin(a)])
+        end = TURBO_IN + [q * FILTER_LEN, 0, 0] + d * (40 + 35 * q)          # onto the cone's surface
+        p = np.concatenate([resample(bezier(s0, s0 + rng.normal(0, 90, 3), end + d * 120, end, 30), 5),
+                            resample(np.array([end, TURBO_IN, tx(-440)]), 5)])
+        out.append(dict(path=np.round(p, 1).tolist(), radius=[28.0] * len(p), n=55, speed=.45,
+                        colors=[[0, "$bay"]], zone="bay"))
     # the plenum splits it four ways: along the plenum, down each runner, into the port
     for x in CYL_X:
         p = np.concatenate([resample(np.array([THROTTLE + [-30, 0, 0], [x, THROTTLE[1], THROTTLE[2]]]), 5),
@@ -683,17 +734,19 @@ def engine():
     (face centre, the way it faces, its up, radius) on the dash."""
     face, up = [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]
     g = lambda kind, y, z, r: dict(kind=kind, center=[DASH_X - 1.5, y, z], normal=face, up=up, r=r)
-    return dict(boost_psi=8.0, redline=7200, idle=850, rpm_per_mph=55.0,
+    t = lambda kind, y, z, **k: dict(kind=kind, center=[DASH_X - 11.5, y, z], normal=face, up=up, **k)
+    return dict(boost_psi=BOOST_PSI, redline=7200, idle=850,
                 gauges=[g("speedo", 283.0, 790.0, 52.0), g("tach", 397.0, 790.0, 52.0),
-                        dict(g("boost", 0.0, 755.0, 42.0), center=[DASH_X - 11.5, 0.0, 755.0]),
-                        dict(g("afr", 0.0, 650.0, 42.0), center=[DASH_X - 11.5, 0.0, 650.0])])
+                        # tombstone, top to bottom: boost (left, from the seat) + AFR side by side, radio, spec screen
+                        t("boost", 36.0, 785.0, r=21.0), t("afr", -36.0, 785.0, r=21.0),
+                        t("radio", 0.0, 727.0, w=140.0, h=46.0), t("screen", 0.0, 620.0, w=140.0, h=150.0)])
 
 
 def spec(hose_len):
     out_id = P.OUTLET_OD - 2 * P.OUTLET_WALL
     a_out = math.pi * (out_id / 2) ** 2
     q = lambda mph: 0.5 * RHO * (mph * MPH) ** 2 / 6894.76
-    flow = 1.6e-3 * 7000 / 2 / 60 * 0.9 * (14.7 + 8) / 14.7        # B6 at 7000 rpm, VE 0.9, 8 psi
+    flow = 1.6e-3 * 7000 / 2 / 60 * 0.9 * (14.7 + BOOST_PSI) / 14.7   # B6 at 7000 rpm, VE 0.9, full boost
     return [
         ["Car", "1990 Mazda MX-5 (NA), US / LHD, B6 1.6 L"],
         ["Intake", "false turn signal -> adapter -> hose -> turbo (cold side) -> down, forward -> "
@@ -702,7 +755,7 @@ def spec(hose_len):
         ["Adapter outlet", f"{P.OUTLET_OD / 25.4:.1f} in OD, {out_id:.1f} mm ID ({a_out:,.0f} mm2)"],
         ["Hose (mock)", f"2.5 in silicone, ~{hose_len / 25.4:.0f} in"],
         ["Ram pressure", f"{q(30):.2f} / {q(60):.2f} / {q(90):.2f} psi at 30 / 60 / 90 mph"],
-        ["Turbo inlet flow", f"~{flow * 1000:.0f} L/s at 7000 rpm, 8 psi -> {flow / (a_out * 1e-6):.0f} m/s in the tube"],
+        ["Turbo inlet flow", f"~{flow * 1000:.0f} L/s at 7000 rpm, {BOOST_PSI:.0f} psi -> {flow / (a_out * 1e-6):.0f} m/s in the tube"],
         ["What it does", "feeds outside air (cooler, denser) to the compressor; ram adds well under 1 psi"],
         ["Note", "mock shapes, not measured - the adapter and the false turn signal are the real files"],
     ]
@@ -721,7 +774,7 @@ def make(out_dir):
         if name in ("compressor_wheel", "turbine_wheel"):           # one shaft
             item["spin"] = dict(center=list(map(float, TURBO_AX)), axis=[1.0, 0.0, 0.0])
         if name.startswith("headlight_l") or name.startswith("headlight_r"):   # pops up about the hinge
-            item["hinge"] = dict(center=HINGE, axis=[0.0, 1.0, 0.0], up=-math.radians(30),   # front face 60 deg -> vertical
+            item["hinge"] = dict(center=HINGE, axis=[0.0, 1.0, 0.0], up=-math.pi / 2,   # lens: facing down -> facing forward
                                  side="left" if "left" in name else "right")
         if name == "throttle_plate":                                # opens with the throttle slider
             item["throttle"] = dict(center=list(map(float, THROTTLE + [20, 0, 0])), axis=[0.0, 0.0, 1.0])
@@ -736,6 +789,9 @@ def make(out_dir):
         view=dict(target=[-600, 250, 450], camera=[1500, 2300, 1500]),
         dash_view=dict(target=[DASH_X, 220, 740], camera=[-2420, 330, 1010]),
         engine=engine(),
+        isolate=["false_turn_signal", "blinker", "vent_tabs", "mesh_screen", "zip_ties"],   # + the adapter: what we're making
+        ours=["false_turn_signal", "false_turn_signal_right", "blinker", "vent_tabs", "mesh_screen", "zip_ties",
+              "silicone_hose", "hose_clamps"],                       # off (with the adapter) for "Bay air"
         spec=spec(hose_len)))
     with open(os.path.join(out_dir, "scene.json"), "w") as fh:
         json.dump(scene, fh)

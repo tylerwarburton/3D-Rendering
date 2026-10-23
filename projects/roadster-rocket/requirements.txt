@@ -1,0 +1,1 @@
+# Runtime is Blender 4.3+ and its bundled Python. No pip packages are needed.

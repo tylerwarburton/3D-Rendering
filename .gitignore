@@ -7,3 +7,7 @@ __pycache__/
 !tests/fixtures/*.stl
 # STLs a project starts from / edits are source files - keep them
 !projects/*/source/*.stl
+# generated renders / scratch
+output/
+.tmp/
+*.blend1

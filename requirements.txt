@@ -5,4 +5,7 @@ numpy
 networkx
 pillow
 pytest
+build123d==0.10.0   # new CAD-style parts; 0.10 keeps cadquery-ocp 7.8 (newer pulls 7.9 and breaks CadQuery)
+ocpsvg<0.6
+pymeshlab           # mesh repair / decimation for imported STLs
 # each project may add its own: projects/<name>/requirements.txt

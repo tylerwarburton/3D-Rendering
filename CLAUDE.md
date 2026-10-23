@@ -15,6 +15,8 @@ add a round to its `docs/DESIGN_LOG.md` for every design change.
 - `projects/snake-hide/` - L-shaped underground snake hide (torii corridor), final.
 - `projects/miata-intake/` - 1990 NA Miata turn-signal duct -> 2.5 in intake adapter (CadQuery).
 - `projects/screen-protector/` - Case that closes over a ~7 in screen + its cables; make it structurally sound and bolt-together
+- `projects/flag-badge/` - Remove a side logo from an STL and add a raised, paintable US flag (test plate first)
+- `projects/miata-toggle-panel/` - Two standard toggle switches in each of the three driver-side Mazda Miata dashboard switch openings
 
 ## Commands (repo root)
 
@@ -78,6 +80,15 @@ pytest -q                                                       # every project'
 - `shared/configurator.html` - options -> Generate -> 3D view (size, bed fit,
   grams, >45 deg overhangs, views, section, ruler) + STL/OBJ download.
 - `shared/render.py` - numpy z-buffer renderer for PNG review sheets.
+- **Render & print** (in every configurator, all opt-in; the normal 3D view stays the
+  default): `Realistic` path traces the current view in the browser
+  (`shared/realistic.js`, three-gpu-pathtracer, a snapshot re-taken on toggles), `AR`
+  opens model-viewer on a GLB, sidebar Photo / Turntable = Blender (Cycles / EEVEE),
+  Slice = Bambu Studio CLI (X1C 0.4, 0.20mm Standard, PLA Basic) -> time, grams, 3MF.
+  Server side: `shared/studio.py` (also a CLI: `python shared/studio.py render|slice|glb
+  <stl>`) + `shared/blender_render.py`; cached in `out/<p>/.studio/`.
+- CAD: CadQuery for existing projects; **build123d** (0.10, same OCCT kernel) for new
+  CAD-style parts. `pymeshlab` for repairing / decimating imported STLs.
 - Outputs (`out/`) and STLs are git-ignored, except `projects/*/source/*.stl`.
 
 ## How Tyler works
