@@ -91,6 +91,16 @@ pytest -q                                                       # every project'
   CAD-style parts. `pymeshlab` for repairing / decimating imported STLs.
 - Outputs (`out/`) and STLs are git-ignored, except `projects/*/source/*.stl`.
 
+## Hosted copy (mobile-ai, tailnet)
+
+- A clone runs on the mobile-ai server as `3d-rendering.service` (serve.py behind
+  nginx, tailnet only); Tyler uses it from any device. Python 3.12 venv `.venv/`,
+  Blender in `/opt/blender`, Bambu Studio's AppImage extracted to `/opt/bambu-studio`.
+- Git is the sync: work on either machine, commit, push; the other pulls. Chat edits
+  made on the server stay uncommitted until committed there. Restart the service
+  after serve.py / studio.py changes; re-run `presets.py` after generator changes.
+- `SERVE_HOSTS` (env) lists the proxy's public host[:port]s the API accepts.
+
 ## How Tyler works
 
 Short messages, often typed fast. He judges by looking, so render or

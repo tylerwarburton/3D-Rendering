@@ -31,6 +31,7 @@ Render & print (configurator sidebar + Realistic/AR buttons; shared/studio.py, s
 """
 import html as H
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -203,9 +204,10 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _local(self):
         """Only pages served from this server may call the API (no other
-        website can drive the chat through your browser)."""
+        website can drive the chat through your browser). Behind a proxy, list
+        its public host[:port]s in SERVE_HOSTS (comma separated)."""
         port = self.server.server_address[1]
-        ok = {f"localhost:{port}", f"127.0.0.1:{port}"}
+        ok = {f"localhost:{port}", f"127.0.0.1:{port}"} | set(filter(None, os.environ.get("SERVE_HOSTS", "").split(",")))
         origin = self.headers.get("Origin")
         return (self.headers.get("Host") in ok
                 and (origin is None or origin.split("//", 1)[-1] in ok))

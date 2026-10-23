@@ -33,7 +33,8 @@ def _find(names, globs):
 
 
 BLENDER = _find(["blender"], ["Blender Foundation/Blender */blender.exe"])
-BAMBU = _find(["bambu-studio"], ["Bambu Studio/bambu-studio.exe"])
+# Linux: the AppImage extracted to /opt/bambu-studio (AppRun next to resources/, like the .exe on Windows)
+BAMBU = _find(["bambu-studio", "/opt/bambu-studio/AppRun"], ["Bambu Studio/bambu-studio.exe"])
 
 
 def cached(stl, ext):
