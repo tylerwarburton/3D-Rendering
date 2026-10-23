@@ -28,7 +28,7 @@ build.py              runs projects/<name>/build.py
 serve.py              local server for out/
 shared/
   printkit.py         load / edit / export STLs, print checks
-  configurator.html   the per-project configurator page
+  configurator.html   per-project 3D view, ruler, named-surface picker, downloads
   render.py           numpy renderer for PNG sheets
 templates/project/    CLAUDE.md (goal, dimensions, rules), design log, parts, tests
 projects/

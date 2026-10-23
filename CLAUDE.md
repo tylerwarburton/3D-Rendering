@@ -78,7 +78,15 @@ pytest -q                                                       # every project'
   build writes one, else the biggest part of the default preset; optional
   `"cover_view": [x, y, z]` look direction in configurator.json); `/p/<project>` = its configurator.
 - `shared/configurator.html` - options -> Generate -> 3D view (size, bed fit,
-  grams, >45 deg overhangs, views, section, ruler) + STL/OBJ download.
+  grams, >45 deg overhangs, views, section, ruler, named-surface picker) +
+  STL/OBJ download. Projects may define `scene.json.surfaces` bounds for stable
+  face labels; Chat Point picks carry the same `surface_name`.
+- Face picking (`shared/chat.js`, every page with a `window.__viewer`): in chat
+  Point mode the face under the pointer glows; a click selects the whole flat or
+  curved face (welded mesh, grown from the clicked triangle) as F1, F2... in its own
+  colour, plus the exact point. Several at once; click again to drop one. Claude gets
+  each face's normal / plane / axis, area, centroid and bounds, and names faces by id,
+  which the chat turns into clickable tags.
 - `shared/render.py` - numpy z-buffer renderer for PNG review sheets.
 - **Render & print** (in every configurator, all opt-in; the normal 3D view stays the
   default): `Realistic` path traces the current view in the browser

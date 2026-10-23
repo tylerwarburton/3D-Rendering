@@ -120,6 +120,7 @@ canvas{display:block;width:100%;height:100%}
       <span class="sep"></span>
       <button id="edges" title="Outline sharp edges">Edges</button>
       <button id="ruler" title="Click two points on the model to measure">Ruler</button>
+      <button id="nameface" title="Click a model surface to identify it">Name surface</button>
       <button id="spin">Spin</button>
       <span class="sep extra"></span>
       <button id="dirt" class="on extra" title="The dirt hill and glass it sits in">Dirt</button>
@@ -375,18 +376,54 @@ document.getElementById('edges').onclick = e => toggleEdges(!e.target.classList.
 /* ---- spin ---- */
 document.getElementById('spin').onclick = e => { ctl.autoRotate = !ctl.autoRotate; e.target.classList.toggle('on', ctl.autoRotate); };
 
-/* ---- ruler: click two points ---- */
-let ruler = false, rpts = [], robjs = [];
+/* ---- ruler + named surface picker ---- */
+let ruler = false, naming = false, rpts = [], robjs = [];
 const meas = document.getElementById('meas');
-function clearRuler(){ robjs.forEach(o => scene.remove(o)); robjs = []; rpts = []; meas.textContent = ruler ? 'click two points' : ''; }
-document.getElementById('ruler').onclick = e => { ruler = !ruler; e.target.classList.toggle('on', ruler); clearRuler(); };
+function clearRuler(){ robjs.forEach(o => scene.remove(o)); robjs = []; rpts = [];
+  meas.textContent = ruler ? 'click two points' : naming ? 'click a surface' : ''; }
+document.getElementById('ruler').onclick = e => {
+  ruler = !ruler; naming = false; e.target.classList.toggle('on', ruler);
+  document.getElementById('nameface').classList.remove('on'); clearRuler();
+};
+document.getElementById('nameface').onclick = e => {
+  naming = !naming; ruler = false; e.target.classList.toggle('on', naming);
+  document.getElementById('ruler').classList.remove('on'); clearRuler();
+};
+function filePoint(hit){
+  const p = hit.object.worldToLocal(hit.point.clone());
+  return cur ? [p.x + cur.shift[0], p.y + cur.shift[1], p.z + cur.shift[2]] : [p.x, p.y, p.z];
+}
+function axisFace(n){
+  const a = [Math.abs(n.x), Math.abs(n.y), Math.abs(n.z)], i = a.indexOf(Math.max(...a));
+  return 'XYZ'[i] + ([n.x, n.y, n.z][i] >= 0 ? '+' : '-');
+}
+function surfaceName(p, n){
+  for(const r of ((SCENE && SCENE.surfaces) || [])){
+    const b = r.bounds;
+    if(p[0] >= b[0][0] && p[0] <= b[1][0] && p[1] >= b[0][1] && p[1] <= b[1][1]
+       && p[2] >= b[0][2] && p[2] <= b[1][2]) return r.name;
+  }
+  return axisFace(n) + '_surface';
+}
 let rdown = null;
 cv.addEventListener('pointerdown', e => { rdown = [e.clientX, e.clientY]; });
 cv.addEventListener('pointerup', e => {
-  if(!ruler || !mesh || !rdown || Math.hypot(e.clientX - rdown[0], e.clientY - rdown[1]) > 4) return;
+  if((!ruler && !naming) || !mesh || !rdown || Math.hypot(e.clientX - rdown[0], e.clientY - rdown[1]) > 4) return;
   const r = cv.getBoundingClientRect(), ray = new THREE.Raycaster();
   ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), cam);
   const hit = ray.intersectObject(mesh)[0]; if(!hit) return;
+  if(naming){
+    clearRuler();
+    const fp = filePoint(hit), n = hit.face ? hit.face.normal.clone() : new THREE.Vector3(0, 0, 1);
+    const label = surfaceName(fp, n), rad = Math.max(0.8, cam.position.distanceTo(hit.point) / 200);
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(rad, 12, 8),
+      new THREE.MeshBasicMaterial({color: 0x48d6ff, depthTest: false}));
+    dot.position.copy(hit.point); dot.renderOrder = 999; scene.add(dot); robjs.push(dot);
+    const face = window.__faceAt && window.__faceAt(hit);              // whole face (shared/chat.js)
+    if(face){ robjs.push(face.overlay); meas.textContent = face.info.label; return; }
+    meas.textContent = label + ' · (' + fp.map(x => x.toFixed(1)).join(', ') + ') mm · ' + axisFace(n);
+    return;
+  }
   if(rpts.length === 2) clearRuler();
   rpts.push(hit.point.clone());
   const rad = Math.max(0.8, cam.position.distanceTo(hit.point) / 200);
@@ -411,7 +448,11 @@ window.__viewer = {
     return {page: 'configurator', project: PROJECT, part: cur.name, file: 'out' + cur.path,
             options: CFG ? vals : null, size_mm: [d.x, d.y, d.z].map(v => +v.toFixed(1))};
   },
-  toFile: p => cur ? [p[0] + cur.shift[0], p[1] + cur.shift[1], p[2] + cur.shift[2]] : p,
+  toFile: p => {
+    const q = mesh ? mesh.worldToLocal(new THREE.Vector3(p[0], p[1], p[2])) : new THREE.Vector3(...p);
+    return cur ? [q.x + cur.shift[0], q.y + cur.shift[1], q.z + cur.shift[2]] : [q.x, q.y, q.z];
+  },
+  surfaceName,
   coords: 'file coordinates (mm) of the generated STL',
   reload: init,                                        // after the chat rebuilt the presets
 };

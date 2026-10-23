@@ -60,6 +60,14 @@ if you haven't this conversation; the repo-wide rules are in ../../CLAUDE.md.
 His messages may end with a [Viewer context] block: what is on screen and points
 he clicked on the model (point_mm + surface_normal, in the coordinate system
 named there). Use it to know exactly which part/feature he means.
+Each pick also has `face`: the whole flat or curved surface around the click, highlighted
+on his screen in its own colour, with an id (F1, F2...), a rough name ("flat top (+Z)"),
+normal, plane_offset_mm (flat: normal . p = offset) or axis (curved, wraps round), area,
+centroid and bounds. When he
+points at faces, first say in one line which feature of the geometry code makes each one
+("F2 = the lid's top plate, `lid_t` thick") so he knows you have the right side; if unsure
+which feature it is, say so and ask. Always call faces by their id (F2) - the chat turns
+ids into coloured tags he can click to re-highlight that face.
 Keep replies SHORT (he has ADHD): lead with the answer, a few bullets at most.
 When you change geometry: rebuild what the configurator shows - `python ../../presets.py {p}`
 (python-enclosure: `python build.py fittings`) - and run its tests (`python -m pytest -q`),
