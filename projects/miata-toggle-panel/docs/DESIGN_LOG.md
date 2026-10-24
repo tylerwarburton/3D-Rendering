@@ -3,6 +3,275 @@
 One round per design change, newest first: what Tyler asked, what changed,
 why, and how it was checked (tests, numbers, screenshot, test print result).
 
+### Round 48 - clip flush fillers to original rear-shell curvature (2026-10-23)
+
+- Tyler identified F43 and the three matching filler ends as protruding beyond
+  the source shell's rounded front/back corner profile.
+- Extracted the original STL's rear-band outline, extruded it through the full
+  wall depth, and intersected both flush fillers with that envelope.
+- The inner wall planes remain flush at x=6.6 and x=43.15, while all four ends
+  now follow the source curve instead of terminating as rectangular faces.
+
+### Round 47 - channel walls flush with toggle-mount backs (2026-10-23)
+
+- Tyler selected F41/F42 and requested that their +Z faces be flush.
+- Removed the 0.05 mm cutter setback: rear channels and both outer-wall fillers
+  now terminate at PANEL_BACK_Z=-0.4 instead of z=-0.45.
+- Both toggle sides now meet the mounting-panel back at the same printable
+  z=2.4 plane, eliminating the 0.05 mm ledge.
+
+### Round 46 - complete flush outer walls on both sides (2026-10-23)
+
+- Tyler identified F37/F38 and their mirrored counterparts as cap/sloped
+  transition surfaces left by the first fillers.
+- Extended both fillers across the complete 27.3 mm width and full
+  z=-23..-0.45 channel depth.
+- Both outer inner walls are now single planes at x=6.6 and x=43.15, with no
+  intermediate top, bottom, sloped, or width-transition faces.
+
+### Round 45 - fill original outer indents flush to channel walls (2026-10-23)
+
+- Tyler confirmed that F35 is original geometry but requested that it be filled
+  forward until flush with the F36 switch-channel wall.
+- Added two symmetric rectangular fillers over the source's 23 x 10.5 mm
+  recessed regions, ending exactly at x=6.6 and x=43.15 mm.
+- The resulting outer inner faces preserve 0.4 mm clearance around both 16 mm
+  front shoulders. Holes, channels, centre divider, and rear depth are unchanged.
+
+### Round 44 - audit back to a minimal original-STL edit (2026-10-23)
+
+- Tyler requested a full audit and removal of every irrelevant wall experiment.
+- Rebuilt the generator around the repaired original STL with only five edits:
+  rear extension to 23 mm, filled front plate, two 12.2 mm holes, two simple
+  switch-body channels, and one straight centre divider.
+- Removed all added outside walls, front filler strips, reinforcement steps,
+  pillars, flex geometry, relief cuts, and special face transitions.
+- The centre divider is exactly the 2.95 mm gap between the 16.8 mm channels,
+  leaving 0.4 mm clearance to each 16 mm front shoulder.
+
+### Round 43 - replace four reinforcement pillars with full walls (2026-10-23)
+
+- Tyler identified F31 and three matching 2 x 21 mm faces as the ends of local
+  reinforcement pillars that should not exist.
+- Extended the rear thick sections across the full original 27.3 mm wall span,
+  eliminating the four y-direction pillar transitions.
+- The rear outer walls now sit flush to the former F33 body-clearance planes;
+  the centre wall is likewise full width between both switches.
+- Kept only a short depth-wise step near the face to clear the wider 16 mm
+  switch shoulder by 0.4 mm.
+
+### Round 42 - restore wall material in all former flex zones (2026-10-23)
+
+- Tyler requested that every cutout/tab region be returned to plain wall after
+  removing the flex system, using the original STL as reference.
+- The source rear plug envelope spans y=0..27.3 mm. Extended all three support
+  walls from the flex-era 23 mm trim back to that full original span.
+- Added solid-volume checks at both former end zones on all three walls, proving
+  no flex relief or tab cavity remains.
+
+### Round 41 - remove flex system and keep simple walls (2026-10-23)
+
+- Tyler determined that printed flex clasps are not useful at this scale and a
+  separate holder will retain the switches around their circular mounts.
+- Removed all eight flex bars, root anchors, end clips, shell relief channels,
+  and tab-bite cuts. No replacement clasp or holder was added.
+- Retained only the two continuous outside walls and continuous centre wall,
+  including their maximum-width reinforced middle sections and body clearance.
+- Removed obsolete flex-part names and specifications from the browser scene.
+
+### Round 40 - maximum-width middle sections on all three walls (2026-10-23)
+
+- Tyler clarified that the centre of the internal wall and both outside walls
+  should be made as wide as possible, not merely 1.6 mm.
+- Expanded each uninterrupted 21 mm middle section to 3.95 mm behind the front
+  shoulder, leaving 0.4 mm clearance to the 15 mm switch-body envelope.
+- Stepped the front portions to the maximum width that retains the same 0.4 mm
+  clearance around the 16 mm-wide shoulder.
+- Left every tab-end zone and its flex pocket open and unchanged.
+
+### Round 39 - centre column matches outside wall thickness (2026-10-23)
+
+- Tyler requested a thicker internal wall, with its base and centre matching
+  the outside walls.
+- Increased the main centre column from 0.85 to 1.6 mm.
+- Kept the four centre flex cavities at their established 1.2 mm depth by
+  recessing only the tab-width free-length zones. The base and middle remain
+  the full 1.6 mm thickness.
+
+### Round 38 - open the four F26-style wall areas (2026-10-23)
+
+- Tyler identified F26 as the large original channel face still present behind
+  the outer tabs, with four matching local areas to remove.
+- The prior 0.2 mm relief bite stopped 0.05 mm before that face. Increased all
+  four outer bites to 0.4 mm, cutting 0.15 mm through the old wall surface.
+- Each outer flex bar retains 1.2 mm of its original 1.6 mm thickness.
+
+### Round 37 - reduce outside-tab overhang and bite the bars (2026-10-23)
+
+- Tyler identified F24 and the three matching faces as outer tabs projecting
+  too far beyond the fixed wall ends.
+- Halved the projection of those four tabs from 1.875 to 0.9375 mm, preserving
+  each inner edge so the tabs do not move into the 21 mm body protrusion.
+- Narrowed the matching old-shell reliefs with the tabs and extended each relief
+  0.2 mm into the flex bar itself. Centre-wall tabs remain unchanged.
+
+### Round 36 - full-length relief behind every flex tab (2026-10-23)
+
+- Tyler used F20/F21 to show that original shell material still interrupted
+  the clearance behind the tabs.
+- Added eight tab-width relief cuts through only the old shell material, running
+  from each anchored root at z=-11.3 to z=-23, 0.5 mm past the free bar end.
+- The separate walls, 1.2 mm root anchors, 12.4 mm bars, and retaining clips are
+  unchanged; the relief now spans the complete free cantilever length.
+
+### Round 35 - trim wall inserts to the original shell ends (2026-10-23)
+
+- Tyler identified F13/F14 as the end faces of fixed-wall material protruding
+  past the original rear shell.
+- Reduced all three fixed wall inserts from 27.3 to 23 mm, removing 2.15 mm at
+  both ends so their front/back limits match the original straight shell wall.
+- Kept the eight corner flex bars, anchors, and clips separate and unchanged.
+
+### Round 34 - remove the source's wider centre rib (2026-10-23)
+
+- Tyler identified F11 and F12 as the two faces of the only centre wall that
+  should remain.
+- Removed the complete original 2.95 mm-wide rear centre rib while preserving
+  the front mounting plate.
+- Re-added only the narrow 0.85 mm fixed core between F11/F12, along with its
+  four separate flex tabs, front anchors, and end clips.
+- Extended that narrow core alone 0.1 mm into the rear of the face plate so the
+  centre clips remain part of the printable body after removing the old rib.
+
+### Round 33 - flatten outer wall indents and shorten tabs again (2026-10-23)
+
+- Tyler identified F9 as a recessed outer-wall section beside the main F10
+  plane and requested that every equivalent indent be removed.
+- Filled the 0.125 mm step on both outer walls only from the rear-shell join to
+  the tab starts, producing a continuous front wall plane without filling the
+  flex cavities behind the moving bars.
+- Shortened all eight flex bars another 3 mm, from 15.4 to 12.4 mm free length.
+  Bar thicknesses, end clips, and 1.6/1.2 mm backside gaps remain unchanged.
+
+### Round 32 - restore fixed-wall joins to the rear shell (2026-10-23)
+
+- Tyler identified the unwanted axial cutouts between the fixed-wall bottom
+  faces (for example F7) and the original rear-shell top faces (for example F8).
+- Extended all three fixed walls from z=-4.1 to z=-2.4, overlapping the source
+  shell ledge by 0.1 mm and closing every corresponding 1.6 mm gap.
+- Kept all eight flex bars separate, shortened, and unchanged; the 1.6 mm outer
+  and 1.2 mm centre backside flex gaps remain open for their full free lengths.
+
+### Round 31 - shorter separate tabs with thickness-matched gaps (2026-10-23)
+
+- Tyler explicitly rejected a U-shaped wall tongue: retain four separate flex
+  tabs per toggle with solid walls behind them.
+- Removed the bar-sized wall windows from Round 30 and restored solid walls.
+- Positioned walls so each open backside gap equals its bar thickness: 1.6 mm
+  outside and 1.2 mm at the centre column.
+- Moved tab/front-anchor start from z=-4.1 to z=-7.1, shortening every bar by
+  3 mm while leaving end clips and the 1.2 mm anchors unchanged.
+
+### Round 30 - bar-sized windows through walls (2026-10-23)
+
+- Tyler selected `centre_column - flat right` and clarified that the wall area
+  directly behind every flex bar should be removed completely.
+- Cut eight rectangular windows through the supporting walls, each exactly the
+  2.6 mm bar width and free length from rear tip to front anchor.
+- Preserved the bars, all retaining clips, and their 1.2 mm front anchors.
+- Removed the previous local clip-back notches; there are no extra side cuts or
+  replacement wall material in the bar windows.
+
+### Round 29 - flatter walls, extra shoulder reveal, thicker bars (2026-10-23)
+
+- Tyler referenced `lower_outer_wall - flat bottom` and asked that all wall
+  fronts sit 0.5 mm farther behind the wider 3 mm front shoulder.
+- Moved cage/front anchors from z=-3.6 to z=-4.1, increasing the visible
+  shoulder reveal without changing the lever holes.
+- Kept each main wall as a continuous planar box; the only subtraction is a
+  0.8 mm-deep local pocket directly behind each retaining lip.
+- Doubled flex-bar thicknesses from 0.8 to 1.6 mm outside and 0.6 to 1.2 mm in
+  the centre. Open backside gaps and all eight end clips remain.
+
+### Round 28 - shifted solid walls with freestanding thinner bars (2026-10-23)
+
+- Surface naming revealed that `upper_outer_clip_A` was only the visible front
+  object; Tyler wanted the material behind its bar removed, not the clip itself.
+- Removed all wall-channel/pocket cutters and restored continuous solid walls.
+- Shifted every solid wall face 1 mm farther from the switch, leaving the old
+  region genuinely open rather than filling it with replacement geometry.
+- Halved flex-bar thicknesses: outer bars 1.6 -> 0.8 mm and centre bars 1.2 ->
+  0.6 mm. Clip positions and 1 mm retaining lips remain unchanged.
+- Each bar now connects to its wall only through a 1.2 mm-deep front anchor;
+  its complete backside is otherwise open.
+
+### Round 27 - named selectable surfaces in the browser (2026-10-23)
+
+- Added a shared `Name surface` viewer tool: click a face to display its stable
+  label, generated-STL coordinates, and X/Y/Z surface direction.
+- Project scene metadata names the front face, outer lip, both toggle mounts,
+  centre column, four flex-bar groups, and all eight individual clip ends.
+- Chat `Point` picks now include the same `surface_name`, making references in
+  follow-up messages unambiguous even while the hardware view is transformed.
+
+### Round 26 - clear the wider front 3 mm shoulder (2026-10-23)
+
+- Tyler measured the first 3 mm on the face side as 1 mm wider per side than
+  the 14 mm base: a 16 mm-wide front shoulder.
+- Widened the rear entrance channels to clear that 16 mm envelope plus normal
+  fit allowance.
+- Moved all added clip walls and their front anchors to z=-3.6, immediately
+  behind the shoulder, while retaining the rear snap-lip positions.
+- Added a test proving the full 16 x 29 x 3 mm shoulder volume has zero cage
+  interference at both switch positions.
+
+### Round 25 - cut the full long backside of each tab (2026-10-23)
+
+- Tyler clarified that the desired relief is along the entire long face of the
+  tab opposite the toggle body—not beside it and not only near the end clip.
+- Replaced the single combined channel and separate tip pocket with three
+  explicit cuts per tongue: one 5 mm-deep full-length backside pocket and two
+  independent 1 mm edge slots.
+- The front 1.2 mm anchor, bar dimensions, and 1 mm end retaining lip remain
+  unchanged.
+
+### Round 24 - shorter retaining lips (2026-10-23)
+
+- Reduced each end clip's inward projection from 1.5 to 1.0 mm.
+- Preserved straight-bar thickness/length, 0.8 mm clip height, 1 mm side slots,
+  and the new 5 mm behind-clip flex pockets.
+
+### Round 23 - move extra relief behind clip, not beside it (2026-10-23)
+
+- Tyler corrected the previous relief direction: extra material had been
+  removed beside the clip instead of directly behind its flex path.
+- Restored local side relief from 1.8 to the normal 1.0 mm channel slots.
+- Increased flex-direction clearance behind the clip from 4 to 5 mm.
+- Extended that behind-clip pocket forward from z=-19.5 to z=-16 mm so the
+  end of the bar can swing without bottoming out.
+- Clip geometry, bar thickness/length, and front anchors remain unchanged.
+
+### Round 22 - enlarged relief behind clip ends (2026-10-23)
+
+- Tyler asked for more material removed specifically behind the clip near the
+  free/top end, beyond the clearance already provided along the bar.
+- Kept the 2.5 mm asymmetric channel behind each straight cantilever.
+- Added a local 4.0 mm-deep, 1.8 mm-per-side pocket around every retaining lip,
+  extending from the open rear to z=-19.5.
+- Front anchors, bar thickness, bar length, and seated/back-out clip positions
+  remain unchanged.
+
+### Round 21 - straight cantilevers with end-only snap lips (2026-10-23)
+
+- Tyler rejected the triangular wedge running along the middle of each tab and
+  asked for a true bar-and-end-clip mechanism.
+- Removed every long wedge. Cantilever thickness and length remain unchanged.
+- Added a short rectangular 1.5 mm retaining lip only at each free rear/top end.
+- Positioned the lip 0.2 mm behind the fully seated switch rear face, so there
+  is no positive-volume interference while seated; backing the switch out
+  engages four lips and requires the bars to flex.
+- Increased asymmetric rearward flex clearance from 1.5 to 2.5 mm.
+
 ### Round 20 - deeper flex pockets behind all tongues (2026-10-23)
 
 - Tyler asked for more room for each tab to flex backward while the stronger

@@ -5,8 +5,9 @@ switch position.
 
 The current fit-test revision keeps the source bezel's visible lip, clears the
 old rear walls for two 90-degree switch bodies and extends the plug to 23 mm.
-The broad switch edges remain uncovered; bottom/top clip walls and a filled
-centre column contain two hooked flex tongues per switch. The switches remain
+The original outside shell is otherwise retained. One straight centre divider
+separates the two clearance channels. Retention comes from the threaded switch
+hardware and a separate holder, not printed flex clips. The switches remain
 purchased hardware shown only in the browser scene.
 
 Do not print all three yet: the 12.2 mm mounting holes and rear-body envelope

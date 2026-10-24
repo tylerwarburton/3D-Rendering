@@ -37,6 +37,7 @@ def _toggle(center_z, lever_dz=0.0, rotation_deg=0.0):
     panel_back = 2.5
     body_center_y = panel_back + BODY_DEPTH / 2
     body = _box((BODY_W, BODY_DEPTH, BODY_H), (0, body_center_y, center_z))
+    shoulder = _box((BODY_W + 2.0, 3.0, BODY_H), (0, panel_back + 1.5, center_z))
     clips = [
         _box(((CLIP_W - BODY_W) / 2, 8.0, 21.0),
              (sx * (BODY_W + CLIP_W) / 4, panel_back + 7.0, center_z))
@@ -58,7 +59,7 @@ def _toggle(center_z, lever_dz=0.0, rotation_deg=0.0):
         _box((3.0, TERMINAL_DEPTH, 5.0), (0, terminal_y, center_z - 9.0)),
         _box((3.0, TERMINAL_DEPTH, 5.0), (-5.0, terminal_y, center_z)),
     ]
-    toggle = trimesh.util.concatenate([body, *clips, bushing, washer, nut, pivot, lever, *terminals])
+    toggle = trimesh.util.concatenate([body, shoulder, *clips, bushing, washer, nut, pivot, lever, *terminals])
     if rotation_deg:
         toggle.apply_transform(
             trimesh.transformations.rotation_matrix(
@@ -100,7 +101,17 @@ def write_scene(out_dir):
               [0, 0, 1, 0],
               [1, 0, 0, 26.875],
               [0, 0, 0, 1]]
-    scene = dict(mock=dict(
+    surfaces = [
+        dict(name="lower_outer_wall", bounds=[[-18.4, -13.7, 2.3], [-18.1, 13.7, 25.1]]),
+        dict(name="centre_column", bounds=[[-1.6, -13.7, 2.2], [1.6, 13.7, 25.1]]),
+        dict(name="upper_outer_wall", bounds=[[18.1, -13.7, 2.3], [18.4, 13.7, 25.1]]),
+        dict(name="lower_toggle_mount", bounds=[[-16.5, -7.0, -0.1], [-3.2, 7.0, 3.0]]),
+        dict(name="upper_toggle_mount", bounds=[[3.2, -7.0, -0.1], [16.5, 7.0, 3.0]]),
+        dict(name="front_face", bounds=[[-21.0, -12.5, -0.1], [21.0, 12.5, 0.7]]),
+        dict(name="outer_lip", bounds=[[-27.0, -15.8, -0.1], [27.0, 15.8, 2.3]]),
+        dict(name="rear_shell", bounds=[[-25.0, -14.0, 2.0], [25.0, 14.0, 25.1]]),
+    ]
+    scene = dict(surfaces=surfaces, mock=dict(
         label="Hardware",
         title="Scene-only lever toggles",
         auto=True,
@@ -116,17 +127,18 @@ def write_scene(out_dir):
             ["Reference", "scene-only; not printable"],
             ["Front", "round washer/nut with metal lever"],
             ["Rear body", "14 mm base; 15 mm at centred protrusion"],
+            ["Front shoulder", "first 3 mm is 16 mm wide"],
             ["Side protrusion", "21 mm long and centred; 4 mm plain base at each end"],
             ["Terminals", "exactly 3 per switch: top, bottom, left-middle"],
             ["Orientation", "lower -90; upper +90; odd terminals face outward"],
             ["Tradeoff", "rear bodies fit vertically; lever throw becomes left/right"],
-            ["Cage", "29 mm toggle edges are open; no long side walls"],
-            ["Wall limits", "new walls stay inside original 27.3 mm plug width"],
-            ["Wall fit", "outer faces 0.05 mm clear; centre wall flush"],
-            ["Grip", "4 corner tongues per toggle; 8 total"],
-            ["Spring", "tabs grip base with 1.00 mm interference closer to panel"],
-            ["Flex room", "1.5 mm open pocket behind each tongue"],
-            ["Retention", "washer/nut remains the primary mount"],
+            ["Geometry", "original outer shell plus one straight centre divider"],
+            ["Channels", "two simple 16.8 x 29.8 mm switch-body clearances"],
+            ["Outer walls", "filled flush across both complete 27.3 x 22.55 mm channel planes"],
+            ["Wall corners", "flush fillers clipped to the original curved rear-plug outline"],
+            ["Flex parts", "none; tabs, anchors, end clips, and reliefs removed"],
+            ["Centre divider", "2.95 mm straight wall; 0.4 mm shoulder clearance per side"],
+            ["Retention", "washer/nut and separate external holder; no printed clasp here"],
         ],
     ))
     (out_dir / "scene.json").write_text(json.dumps(scene), encoding="utf-8")
